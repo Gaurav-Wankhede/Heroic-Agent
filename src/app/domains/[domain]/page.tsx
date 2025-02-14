@@ -2,14 +2,14 @@ import { Header } from '@/components/landing/Header';
 import ChatInterface from '@/components/chat/ChatInterface';
 import { Bot } from 'lucide-react';
 
-type Props = {
+interface PageProps {
   params: {
     domain: string;
   };
-  searchParams: { [key: string]: string | string[] | undefined };
-};
+  searchParams: Record<string, string | string[] | undefined>;
+}
 
-export default function DomainChatPage({ params }: Props) {
+export default async function DomainChatPage({ params }: PageProps) {
   const domainName = params.domain.replace('-', ' ');
 
   return (

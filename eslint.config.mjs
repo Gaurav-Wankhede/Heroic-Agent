@@ -33,24 +33,46 @@ const eslintConfig = [
         "argsIgnorePattern": "^_",
         "caughtErrorsIgnorePattern": "^_",
         "destructuredArrayIgnorePattern": "^_",
-        "ignoreRestSiblings": true
+        "ignoreRestSiblings": true,
+        "args": "after-used"
       }],
       
       // Handle any type usage
-      "@typescript-eslint/no-explicit-any": "warn",
+      "@typescript-eslint/no-explicit-any": ["warn", {
+        "ignoreRestArgs": true,
+        "fixToUnknown": false
+      }],
+      
+      // Handle non-null assertions
+      "@typescript-eslint/no-non-null-assertion": "warn",
       
       // Disable react/no-unescaped-entities for better readability
       "react/no-unescaped-entities": "off",
       
       // Configure react-hooks/exhaustive-deps to be a warning
-      "react-hooks/exhaustive-deps": "warn",
+      "react-hooks/exhaustive-deps": ["warn", {
+        "additionalHooks": "(useAsync|useAsyncCallback)"
+      }],
       
       // Additional TypeScript rules
       "@typescript-eslint/explicit-function-return-type": "off",
-      "@typescript-eslint/no-non-null-assertion": "warn",
-      "@typescript-eslint/no-use-before-define": "off",
-      "@typescript-eslint/no-empty-interface": "warn",
-      "@typescript-eslint/ban-ts-comment": "warn"
+      "@typescript-eslint/no-use-before-define": ["warn", {
+        "functions": false,
+        "classes": true,
+        "variables": true,
+        "typedefs": true
+      }],
+      "@typescript-eslint/no-empty-interface": ["warn", {
+        "allowSingleExtends": true
+      }],
+      "@typescript-eslint/ban-ts-comment": ["warn", {
+        "ts-ignore": "allow-with-description",
+        "ts-expect-error": "allow-with-description"
+      }],
+      "@typescript-eslint/consistent-type-imports": ["warn", {
+        "prefer": "type-imports",
+        "fixStyle": "inline-type-imports"
+      }]
     },
     settings: {
       next: {
