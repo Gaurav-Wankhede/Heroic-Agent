@@ -4,9 +4,6 @@
         "maxDuration": 60
       }
     },
-    "env": {
-      "MONGODB_URI": "@mongodb_uri"
-    },
     "regions": ["iad1"],
     "headers": [
       {

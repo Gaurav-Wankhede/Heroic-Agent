@@ -50,17 +50,13 @@ export async function connectToDatabase() {
 
   try {
     console.log('Connecting to MongoDB...', process.env.NODE_ENV);
-    
-    // Parse and sanitize the connection string
-    const uri = MONGODB_URI.includes('mongodb+srv') ? 
-      MONGODB_URI : 
-      `mongodb+srv://${MONGODB_URI}`;
+    console.log('Connection string format:', MONGODB_URI.split('@')[1]?.split('/')[0]); // Log only the host part
 
     const opts: ConnectOptions = {
       bufferCommands: false,
-      serverSelectionTimeoutMS: 10000, // Increased timeout for production
-      socketTimeoutMS: 60000, // Increased for production
-      connectTimeoutMS: 30000, // Increased for production
+      serverSelectionTimeoutMS: 10000,
+      socketTimeoutMS: 60000,
+      connectTimeoutMS: 30000,
       maxPoolSize: 10,
       minPoolSize: 5,
       retryWrites: true,
@@ -77,7 +73,7 @@ export async function connectToDatabase() {
     }
 
     // Connect with new options
-    const db = await mongoose.connect(uri, opts);
+    const db = await mongoose.connect(MONGODB_URI, opts);
     
     // Add connection error handlers
     mongoose.connection.on('error', (err) => {
