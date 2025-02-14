@@ -1,4 +1,4 @@
-import mongoose from 'mongoose';
+import mongoose, { ConnectOptions } from 'mongoose';
 
 const MONGODB_URI = process.env.MONGODB_URI;
 
@@ -39,37 +39,57 @@ const cached: MongooseCache = {};
 
 export async function connectToDatabase() {
   if (!MONGODB_URI) {
-    console.warn('MONGODB_URI not found, using fallback data');
+    console.warn('MONGODB_URI not found in environment variables');
     throw new Error('MONGODB_URI not found');
   }
 
-  if (cached.isConnected) {
+  if (cached.isConnected && cached.conn) {
     console.log('Using cached database connection');
     return cached.conn;
   }
 
   try {
-    console.log('Connecting to MongoDB...');
-    const opts = {
+    console.log('Connecting to MongoDB...', process.env.NODE_ENV);
+    
+    // Parse and sanitize the connection string
+    const uri = MONGODB_URI.includes('mongodb+srv') ? 
+      MONGODB_URI : 
+      `mongodb+srv://${MONGODB_URI}`;
+
+    const opts: ConnectOptions = {
       bufferCommands: false,
-      serverSelectionTimeoutMS: 5000,
-      socketTimeoutMS: 45000,
-      connectTimeoutMS: 10000,
+      serverSelectionTimeoutMS: 10000, // Increased timeout for production
+      socketTimeoutMS: 60000, // Increased for production
+      connectTimeoutMS: 30000, // Increased for production
       maxPoolSize: 10,
       minPoolSize: 5,
+      retryWrites: true,
+      autoCreate: true,
+      heartbeatFrequencyMS: 30000,
     };
 
-    const db = await mongoose.connect(MONGODB_URI, opts);
+    // Clear any existing connections
+    if (mongoose.connections.length > 0) {
+      const connection = mongoose.connections[0];
+      if (connection.readyState !== 1) {
+        await mongoose.disconnect();
+      }
+    }
+
+    // Connect with new options
+    const db = await mongoose.connect(uri, opts);
     
     // Add connection error handlers
     mongoose.connection.on('error', (err) => {
       console.error('MongoDB connection error:', err);
       cached.isConnected = false;
+      cached.conn = undefined;
     });
 
     mongoose.connection.on('disconnected', () => {
       console.warn('MongoDB disconnected. Attempting to reconnect...');
       cached.isConnected = false;
+      cached.conn = undefined;
     });
 
     mongoose.connection.on('connected', () => {
@@ -77,14 +97,21 @@ export async function connectToDatabase() {
       cached.isConnected = true;
     });
 
-    cached.isConnected = !!db.connections[0].readyState;
+    mongoose.connection.on('reconnected', () => {
+      console.log('MongoDB reconnected successfully');
+      cached.isConnected = true;
+    });
+
+    cached.isConnected = db.connections[0].readyState === 1;
     cached.conn = mongoose;
 
+    console.log('Database connection established');
     return cached.conn;
-  } catch (e) {
-    console.error('MongoDB connection error:', e);
+  } catch (error) {
+    console.error('MongoDB connection error:', error);
     cached.isConnected = false;
-    throw new Error('Unable to connect to database');
+    cached.conn = undefined;
+    throw new Error(`Unable to connect to database: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
 
