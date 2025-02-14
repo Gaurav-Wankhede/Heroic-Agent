@@ -1,15 +1,27 @@
 import mongoose from 'mongoose';
 
+// Define the interface for the document
 interface TestimonialDocument extends mongoose.Document {
+  name: string;
+  email: string;
+  role: string;
   content: string;
-  // ... other fields if needed
+  rating: number;
+  socialProfiles?: {
+    linkedin?: string;
+    github?: string;
+    x?: string;
+  };
+  timestamp: Date;
 }
 
 const testimonialSchema = new mongoose.Schema({
   name: {
     type: String,
-    required: true,
-    trim: true
+    required: [true, 'Name is required'],
+    trim: true,
+    minlength: [2, 'Name must be at least 2 characters long'],
+    maxlength: [50, 'Name cannot be more than 50 characters']
   },
   email: {
     type: String,
@@ -26,20 +38,22 @@ const testimonialSchema = new mongoose.Schema({
   },
   role: {
     type: String,
-    required: true,
-    trim: true
+    required: [true, 'Role is required'],
+    trim: true,
+    maxlength: [100, 'Role cannot be more than 100 characters']
   },
   content: {
     type: String,
-    required: true,
+    required: [true, 'Content is required'],
     trim: true,
-    maxLength: 500
+    minlength: [10, 'Content must be at least 10 characters long'],
+    maxlength: [1000, 'Content cannot be more than 1000 characters']
   },
   rating: {
     type: Number,
-    required: true,
-    min: 1,
-    max: 5
+    required: [true, 'Rating is required'],
+    min: [1, 'Rating must be at least 1'],
+    max: [5, 'Rating cannot be more than 5']
   },
   socialProfiles: {
     linkedin: {
@@ -67,17 +81,32 @@ const testimonialSchema = new mongoose.Schema({
       trim: true,
       validate: {
         validator: function(v: string) {
-          return !v || v.startsWith('https://x.com/');
+          return !v || v.startsWith('https://x.com/') || v.startsWith('https://twitter.com/');
         },
-        message: 'X (formerly Twitter) URL must start with https://x.com/'
+        message: 'X/Twitter URL must start with https://x.com/ or https://twitter.com/'
       }
     }
   },
   timestamp: {
     type: Date,
-    default: Date.now
+    default: Date.now,
+    required: true
+  }
+}, {
+  timestamps: true,
+  toJSON: {
+    transform: function(doc, ret) {
+      ret.id = ret._id;
+      delete ret._id;
+      delete ret.__v;
+      return ret;
+    }
   }
 });
+
+// Create indexes for better query performance
+testimonialSchema.index({ timestamp: -1 });
+testimonialSchema.index({ rating: -1 });
 
 testimonialSchema.index({ email: 1, name: 1 }, { unique: true });
 testimonialSchema.index({ content: 'text' });
@@ -104,4 +133,7 @@ function calculateSimilarity(str1: string, str2: string): number {
   return intersection.size / union.size;
 }
 
-export default mongoose.models.Testimonial || mongoose.model('Testimonial', testimonialSchema); 
+// Handle undefined model error in development hot reloading
+const Testimonial = mongoose.models.Testimonial || mongoose.model<TestimonialDocument>('Testimonial', testimonialSchema);
+
+export default Testimonial; 

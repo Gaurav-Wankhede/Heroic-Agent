@@ -31,70 +31,80 @@ export const fallbackTestimonials = [
 ];
 
 interface MongooseCache {
-  isConnected?: boolean;
+  promise?: Promise<typeof mongoose>;
   conn?: typeof mongoose;
+  isConnected?: boolean;
 }
 
 const cached: MongooseCache = {};
 
-export async function connectToDatabase() {
-  if (!MONGODB_URI) {
-    console.warn('MONGODB_URI not found, using fallback data');
-    return null;
-  }
+if (!MONGODB_URI) {
+  throw new Error('Please define the MONGODB_URI environment variable inside .env.local');
+}
 
-  if (cached.isConnected && cached.conn) {
+// Ensure MONGODB_URI is defined
+const uri: string = MONGODB_URI;
+
+export async function connectToDatabase(): Promise<typeof mongoose | null> {
+  if (cached.conn && cached.isConnected) {
     console.log('Using cached database connection');
     return cached.conn;
   }
 
-  try {
-    console.log('Connecting to MongoDB...', process.env.NODE_ENV);
-    
-    // Clear any existing connections
-    if (mongoose.connections.length > 0) {
-      const connection = mongoose.connections[0];
-      if (connection.readyState !== 1) {
-        await mongoose.disconnect();
-      }
-    }
-
-    // Optimized connection options for serverless
+  if (!cached.promise) {
     const opts: ConnectOptions = {
       bufferCommands: false,
-      serverSelectionTimeoutMS: 5000, // 5 seconds
-      socketTimeoutMS: 10000, // 10 seconds
-      connectTimeoutMS: 10000, // 10 seconds
-      maxPoolSize: 2, // Reduced pool size for serverless
+      serverSelectionTimeoutMS: 5000,
+      socketTimeoutMS: 10000,
+      connectTimeoutMS: 10000,
+      maxPoolSize: 2,
       minPoolSize: 1,
       retryWrites: true,
-      heartbeatFrequencyMS: 5000, // More frequent heartbeats
-      autoCreate: false, // Don't auto-create collections
+      heartbeatFrequencyMS: 5000,
+      autoCreate: false,
+      compressors: "zlib",
+      maxIdleTimeMS: 10000,
+      family: 4
     };
 
-    // Connect with new options
-    const db = await mongoose.connect(MONGODB_URI, opts);
-    
-    // Add connection error handlers
+    cached.promise = mongoose.connect(uri, opts).then((mongoose) => {
+      console.log('New database connection established');
+      return mongoose;
+    });
+  }
+
+  try {
+    cached.conn = await cached.promise;
+    cached.isConnected = true;
+
+    // Add connection event handlers
+    mongoose.connection.on('connected', () => {
+      console.log('MongoDB connected successfully');
+      cached.isConnected = true;
+    });
+
     mongoose.connection.on('error', (err) => {
       console.error('MongoDB connection error:', err);
       cached.isConnected = false;
-      cached.conn = undefined;
     });
 
     mongoose.connection.on('disconnected', () => {
       console.warn('MongoDB disconnected');
       cached.isConnected = false;
-      cached.conn = undefined;
     });
 
-    cached.isConnected = db.connections[0].readyState === 1;
-    cached.conn = mongoose;
+    // Handle process termination
+    process.on('SIGTERM', async () => {
+      await mongoose.connection.close();
+      console.log('MongoDB connection closed due to app termination');
+      process.exit(0);
+    });
 
     return cached.conn;
   } catch (error) {
     console.error('MongoDB connection error:', error);
-    return null; // Return null to trigger fallback data
+    cached.isConnected = false;
+    return null;
   }
 }
 

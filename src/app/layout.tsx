@@ -7,7 +7,7 @@ import { Header } from "@/components/landing/Header";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "DataSci Assistant",
+  title: "Heroic Agent",
   description: "Your AI-Powered Data Science Assistant",
 };
 
