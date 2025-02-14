@@ -25,7 +25,7 @@ export default function LatestTestimonials() {
   useEffect(() => {
     async function fetchLatestTestimonials() {
       try {
-        const response = await fetch('/api/testimonials/latest');
+        const response = await fetch('/api/testimonials');
         if (!response.ok) throw new Error('Failed to fetch testimonials');
         const data = await response.json();
         setTestimonials(data);
