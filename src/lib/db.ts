@@ -1,4 +1,4 @@
-import mongoose, { ConnectOptions } from 'mongoose';
+import mongoose from 'mongoose';
 
 const MONGODB_URI = process.env.MONGODB_URI;
 
@@ -30,75 +30,66 @@ export const fallbackTestimonials = [
   }
 ];
 
-interface MongooseCache {
-  promise?: Promise<typeof mongoose>;
-  conn?: typeof mongoose;
-  isConnected?: boolean;
-}
-
-const cached: MongooseCache = {};
-
 if (!MONGODB_URI) {
   throw new Error('Please define the MONGODB_URI environment variable inside .env.local');
 }
 
-const uri: string = MONGODB_URI;
+// Ensure MONGODB_URI is defined
+const dbUri: string = MONGODB_URI as string;
+let isConnected = false;
 
 export async function connectToDatabase(): Promise<typeof mongoose | null> {
-  try {
-    if (cached.conn && cached.isConnected) {
-      return cached.conn;
-    }
+  if (isConnected) {
+    console.log('Using existing connection');
+    return mongoose;
+  }
 
-    const opts: ConnectOptions = {
-      bufferCommands: true,
-      serverSelectionTimeoutMS: 5000, // Reduced to 5s
-      socketTimeoutMS: 5000,
-      connectTimeoutMS: 5000,
-      maxPoolSize: 5,
+  try {
+    const opts = {
+      bufferCommands: false,
+      serverSelectionTimeoutMS: 8000,
+      socketTimeoutMS: 8000,
+      connectTimeoutMS: 8000,
+      maxPoolSize: 1,
       minPoolSize: 1,
       retryWrites: true,
       retryReads: true,
-      heartbeatFrequencyMS: 5000,
-      family: 4
+      maxIdleTimeMS: 8000,
+      compressors: "zlib"
     };
 
-    if (!cached.promise) {
-      const connectionPromise = mongoose.connect(uri, opts);
-      const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('Connection timeout')), 8000); // 8s timeout
-      });
+    console.log('Creating new connection');
+    await mongoose.connect(dbUri, opts);
+    isConnected = true;
+    console.log('Connected to MongoDB');
+    
+    mongoose.connection.on('error', (err) => {
+      console.error('MongoDB connection error:', err);
+      isConnected = false;
+    });
 
-      cached.promise = Promise.race([connectionPromise, timeoutPromise]) as Promise<typeof mongoose>;
-    }
+    mongoose.connection.on('disconnected', () => {
+      console.log('MongoDB disconnected');
+      isConnected = false;
+    });
 
-    try {
-      cached.conn = await cached.promise;
-      cached.isConnected = true;
-
-      mongoose.connection.on('connected', () => {
-        cached.isConnected = true;
-      });
-
-      mongoose.connection.on('error', () => {
-        cached.isConnected = false;
-        cached.promise = undefined;
-      });
-
-      mongoose.connection.on('disconnected', () => {
-        cached.isConnected = false;
-        cached.promise = undefined;
-      });
-
-      return cached.conn;
-    } catch (error) {
-      cached.promise = undefined;
-      throw error;
-    }
+    return mongoose;
   } catch (error) {
-    cached.isConnected = false;
+    console.error('MongoDB connection error:', error);
+    isConnected = false;
     return null;
   }
+}
+
+// Handle graceful shutdown
+if (process.env.NODE_ENV !== 'development') {
+  process.on('SIGTERM', async () => {
+    if (mongoose.connection.readyState === 1) {
+      await mongoose.connection.close();
+      console.log('MongoDB connection closed due to app termination');
+    }
+    process.exit(0);
+  });
 }
 
 export default connectToDatabase; 
