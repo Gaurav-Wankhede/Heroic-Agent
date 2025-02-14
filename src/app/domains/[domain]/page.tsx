@@ -14,7 +14,14 @@ const VALID_DOMAINS = [
   'data',
   'excel',
   'sql',
-  'power-bi'
+  'power-bi',
+  'tableau',
+  'nlp',
+  'generative-ai',
+  'linkedin-optimization',
+  'resume-creation',
+  'online-credibility'
+  
 ] as const;
 
 type DomainType = typeof VALID_DOMAINS[number];

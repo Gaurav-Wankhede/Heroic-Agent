@@ -44,30 +44,15 @@ const DOMAIN_FILE_RELATIONS: Record<string, {
   secondaryTypes: string[];
   description: string;
 }> = {
-  'python': {
-    primaryTypes: ['code', 'notebook'],
-    secondaryTypes: ['data'],
-    description: 'Python code analysis and data processing'
-  },
-  'machine-learning': {
-    primaryTypes: ['notebook', 'data'],
-    secondaryTypes: ['code'],
-    description: 'Machine learning model development and evaluation'
-  },
-  'deep-learning': {
-    primaryTypes: ['notebook', 'data'],
-    secondaryTypes: ['code'],
-    description: 'Deep learning model implementation and training'
-  },
-  'data': {
-    primaryTypes: ['data', 'notebook'],
-    secondaryTypes: ['code'],
-    description: 'Data analysis and visualization'
-  },
   'excel': {
     primaryTypes: ['data'],
     secondaryTypes: ['notebook'],
     description: 'Spreadsheet analysis and data processing'
+  },
+  'python': {
+    primaryTypes: ['code', 'notebook'],
+    secondaryTypes: ['data'],
+    description: 'Python code analysis and data processing'
   },
   'sql': {
     primaryTypes: ['data'],
@@ -75,9 +60,49 @@ const DOMAIN_FILE_RELATIONS: Record<string, {
     description: 'Database operations and data analysis'
   },
   'power-bi': {
-    primaryTypes: ['data'],
+    primaryTypes: ['data', 'visualization'],  
     secondaryTypes: ['notebook'],
     description: 'Data visualization and reporting'
+  },
+  'tableau': {
+    primaryTypes: ['data', 'visualization'],
+    secondaryTypes: ['notebook'],
+    description: 'Data visualization and reporting'
+  },
+  'machine-learning': {
+    primaryTypes: ['data', 'notebook'],
+    secondaryTypes: ['code'],
+    description: 'Machine learning model development and evaluation'
+  },
+  'deep-learning': {
+    primaryTypes: ['data', 'notebook'],
+    secondaryTypes: ['code'],
+    description: 'Deep learning model implementation and training'
+  },
+  'nlp': {
+    primaryTypes: ['data', 'notebook'],
+    secondaryTypes: ['code'],
+    description: 'Natural language processing and text analysis'
+  },
+  'generative-ai': {
+    primaryTypes: ['data', 'notebook'],
+    secondaryTypes: ['code'],
+    description: 'Generative AI model development and evaluation'
+  },
+  'linkedin-optimization': {
+    primaryTypes: ['data', 'notebook'],
+    secondaryTypes: ['code'],
+    description: 'LinkedIn profile optimization and branding'
+  },
+  'resume-creation': {
+    primaryTypes: ['data', 'notebook'],
+    secondaryTypes: ['code'],
+    description: 'Resume creation and formatting'
+  },
+  'online-credibility': {
+    primaryTypes: ['data', 'notebook'],
+    secondaryTypes: ['code'],
+    description: 'Online credibility and personal brand management'
   }
 };
 
@@ -997,12 +1022,13 @@ Please let me know what aspects you'd like to explore.`;
             </Link>
             <ThemeToggle />
           </div>
+          {/* Domain Name with Capitalization */}
+          <div className="flex items-center gap-3">
+            <h2 className="text-lg font-semibold bg-gradient-to-r from-blue-600 to-violet-600 bg-clip-text text-transparent">
+              {domain.replace('-', ' ').replace(/\b\w/g, char => char.toUpperCase())}
+            </h2>
+          </div>
         </div>
-
-        {/* Chat Title */}
-        <h2 className="text-lg font-semibold bg-gradient-to-r from-blue-600 to-violet-600 bg-clip-text text-transparent">
-          Chat
-        </h2>
       </div>
 
       {/* Keyboard shortcuts bar */}
@@ -1020,10 +1046,14 @@ Please let me know what aspects you'd like to explore.`;
             <kbd className="px-2 py-1 bg-white dark:bg-gray-700 rounded-md shadow-sm border border-gray-200 dark:border-gray-600">{shortcuts.fileUpload}</kbd>
             <span className="ml-2">Upload file</span>
           </div>
-        </div>
-        <div>
+          <div>
+            <kbd className="px-2 py-1 bg-white dark:bg-gray-700 rounded-md shadow-sm border border-gray-200 dark:border-gray-600">{shortcuts.clearChat}</kbd>
+            <span className="ml-2">Clear chat</span>
+          </div>
+          <div>
           <kbd className="px-2 py-1 bg-white dark:bg-gray-700 rounded-md shadow-sm border border-gray-200 dark:border-gray-600">Shift</kbd>
           <span className="ml-2">Hold for horizontal scroll</span>
+          </div>
         </div>
       </div>
 
