@@ -28,7 +28,7 @@ export default function TestimonialsPage() {
     async function fetchTestimonials() {
       try {
         console.log('Fetching testimonials...');
-        const response = await fetch('/api/testimonials', {
+        const response = await fetch('/api/testimonials/all', {
           method: 'GET',
           headers: {
             'Accept': 'application/json',

@@ -25,9 +25,26 @@ export default function LatestTestimonials() {
   useEffect(() => {
     async function fetchLatestTestimonials() {
       try {
-        const response = await fetch('/api/testimonials');
-        if (!response.ok) throw new Error('Failed to fetch testimonials');
+        const response = await fetch('/api/testimonials/recent', {
+          method: 'GET',
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+          },
+          cache: 'no-store',
+        });
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('Error response:', errorText);
+          throw new Error('Failed to fetch testimonials');
+        }
+        
         const data = await response.json();
+        if (!Array.isArray(data)) {
+          throw new Error('Invalid response format');
+        }
+        
         setTestimonials(data);
       } catch (error) {
         console.error('Error fetching testimonials:', error);
@@ -40,19 +57,11 @@ export default function LatestTestimonials() {
   }, []);
 
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-6 w-6 animate-spin text-gray-600 dark:text-gray-400" />
-      </div>
-    );
+    return <div className="animate-pulse">Loading testimonials...</div>;
   }
 
   if (testimonials.length === 0) {
-    return (
-      <div className="text-center text-gray-600 dark:text-gray-400">
-        No testimonials yet. Be the first to share your experience!
-      </div>
-    );
+    return null;
   }
 
   return (
