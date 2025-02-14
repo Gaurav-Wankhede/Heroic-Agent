@@ -1,6 +1,9 @@
 import mongoose from 'mongoose';
 
-const MONGODB_URI = process.env.MONGODB_URI;
+const MONGODB_USERNAME = process.env.MONGODB_USERNAME;
+const MONGODB_PASSWORD = process.env.MONGODB_PASSWORD;
+const MONGODB_CLUSTER = process.env.MONGODB_CLUSTER;
+const MONGODB_COLLECTION = process.env.MONGODB_COLLECTION;
 
 // Fallback data for when database is not available
 export const fallbackTestimonials = [
@@ -30,38 +33,34 @@ export const fallbackTestimonials = [
   }
 ];
 
-if (!MONGODB_URI) {
-  throw new Error('Please define the MONGODB_URI environment variable inside .env.local');
+// Validate environment variables
+if (!MONGODB_USERNAME || !MONGODB_PASSWORD || !MONGODB_CLUSTER || !MONGODB_COLLECTION) {
+  throw new Error(
+    'Please define all MongoDB environment variables: USERNAME, PASSWORD, CLUSTER, and COLLECTION'
+  );
 }
 
-// Ensure MONGODB_URI is defined
-const dbUri: string = MONGODB_URI as string;
+// Construct MongoDB URI with appName
+const dbUri = `mongodb+srv://${MONGODB_USERNAME}:${MONGODB_PASSWORD}@${MONGODB_CLUSTER}/?retryWrites=true&w=majority&appName=${MONGODB_COLLECTION}`;
+console.log('MongoDB URI Structure (without password):', 
+  `mongodb+srv://${MONGODB_USERNAME}:****@${MONGODB_CLUSTER}/?retryWrites=true&w=majority`
+);
+
 let isConnected = false;
 
 export async function connectToDatabase(): Promise<typeof mongoose | null> {
-  if (isConnected) {
-    console.log('Using existing connection');
+  if (isConnected && mongoose.connection.readyState === 1) {
     return mongoose;
   }
 
   try {
     const opts = {
-      bufferCommands: false,
-      serverSelectionTimeoutMS: 8000,
-      socketTimeoutMS: 8000,
-      connectTimeoutMS: 8000,
-      maxPoolSize: 1,
-      minPoolSize: 1,
-      retryWrites: true,
-      retryReads: true,
-      maxIdleTimeMS: 8000,
-      compressors: "zlib"
+      serverSelectionTimeoutMS: 5000, // 5 seconds
+      connectTimeoutMS: 10000, // 10 seconds
     };
 
-    console.log('Creating new connection');
     await mongoose.connect(dbUri, opts);
     isConnected = true;
-    console.log('Connected to MongoDB');
     
     mongoose.connection.on('error', (err) => {
       console.error('MongoDB connection error:', err);
@@ -71,6 +70,11 @@ export async function connectToDatabase(): Promise<typeof mongoose | null> {
     mongoose.connection.on('disconnected', () => {
       console.log('MongoDB disconnected');
       isConnected = false;
+    });
+
+    mongoose.connection.on('connected', () => {
+      console.log(`Connected to MongoDB collection: ${MONGODB_COLLECTION}`);
+      isConnected = true;
     });
 
     return mongoose;
