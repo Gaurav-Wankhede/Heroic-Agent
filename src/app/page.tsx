@@ -7,6 +7,7 @@ import { DonateButton } from '@/components/donate-button/index';
 import { useState } from 'react';
 import LatestTestimonials from '@/components/LatestTestimonials';
 import { ConfirmDialog } from '@/components/chat/ConfirmDialog';
+import { Header } from '@/components/landing/Header';
 
 const domains = [
   { id: 'excel', name: 'Excel', description: 'Master spreadsheet manipulation, formulas, and data analysis techniques' },
@@ -98,6 +99,7 @@ export default function Home() {
 
   return (
     <PageLayout>
+      <Header />
       <div className="relative min-h-[calc(100vh-4rem)] overflow-x-hidden">
         {/* Gradient Background */}
         <div className="absolute inset-0 -z-10 overflow-hidden pointer-events-none">

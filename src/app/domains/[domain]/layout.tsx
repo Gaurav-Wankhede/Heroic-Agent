@@ -9,7 +9,7 @@ export default function DomainLayout({
 }) {
   return (
     <div className="flex h-[100dvh] flex-col">
-      <Header />
+
       <main className="flex-1 overflow-auto scrollbar-hide">
         {children}
       </main>

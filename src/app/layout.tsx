@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
-import { Header } from "@/components/landing/Header";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -26,7 +25,6 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <div className="relative flex h-[100dvh] flex-col">
-            <Header />
             <div className="flex-1 overflow-auto scrollbar-hide">
               {children}
             </div>

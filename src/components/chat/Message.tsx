@@ -132,7 +132,15 @@ const MarkdownComponents: Components = {
   ),
 };
 
-export function Message({ content, isAI, groundingMetadata, onEdit, messageId, edited, timestamp }: MessageProps) {
+export function Message({ 
+  content, 
+  isAI, 
+  groundingMetadata, 
+  onEdit, 
+  messageId, 
+  edited, 
+  timestamp
+}: MessageProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editedContent, setEditedContent] = useState(content);
   const [selectedSource, setSelectedSource] = useState<number | null>(null);
