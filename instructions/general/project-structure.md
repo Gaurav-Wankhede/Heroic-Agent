@@ -2,48 +2,78 @@
 
 ```plaintext
 src/
-├── app/                      # App Router directory
-│   ├── layout.tsx           # Root layout
-│   ├── page.tsx             # Landing page
-│   └── (routes)/           # Route group (won't affect URL)
-│       ├── domains/        # Domains section
-│       │   ├── page.tsx    # Domains grid
-│       │   └── [domain]/   # Dynamic domain routes
-│       │       └── page.tsx # Domain chat page
-├── components/              # Shared components
-│   ├── ui/                 # Reusable UI components
-│   └── chat/              # Chat-specific components
-├── lib/                    # Shared utilities
-│   ├── ai.ts              # AI integration
-│   └── utils.ts           # Helper functions
-└── types/                 # TypeScript types
-
+├── app/ # App Router directory
+│ ├── api/ # API routes
+│ ├── domains/ # Domain-specific pages
+│ ├── features/ # Features page
+│ ├── testimonials/ # Testimonials page
+│ ├── globals.css # Global styles
+│ ├── favicon.ico # Site favicon
+│ ├── layout.tsx # Root layout
+│ ├── page.tsx # Landing page
+│ └── page-layout.tsx # Shared page layout component
+├── components/ # Shared components
+│ ├── chat/ # Chat-specific components
+│ ├── domains/ # Domain-specific components
+│ ├── landing/ # Landing page components
+│ │ ├── Footer.tsx
+│ │ ├── Header.tsx
+│ │ └── Hero.tsx
+│ ├── donate-button/ # Donation components
+│ ├── ui/ # Reusable UI components
+│ ├── LatestTestimonials.tsx # Testimonials display component
+│ ├── TestimonialForm.tsx # Testimonial submission form
+│ ├── theme-provider.tsx # Theme context provider
+│ └── theme-toggle.tsx # Theme switching component
+├── lib/ # Utility functions and services
+│ ├── ai.ts # AI-related functionality
+│ ├── db.ts # Database configuration
+│ ├── seed.ts # Database seeding utilities
+│ └── utils.ts # Common utility functions
+└── types/ # TypeScript types
+    └── chat.ts # Chat-related type definitions
 ```
 
 ## Directory Descriptions
 
 ### `/app`
 - Root directory for Next.js App Router
-- Contains layouts and pages
-- Uses route groups for better organization
+- Contains page layouts and route components
+- Includes API routes under `/api`
+- Global styles and assets
+- Organized by feature domains
 
 ### `/components`
 - Shared components used across multiple pages
 - Organized by feature/functionality
-- Follows atomic design principles
+- Includes both domain-specific and generic UI components
+- Theme management components
+- Form and display components for testimonials
 
 ### `/lib`
-- Utility functions and shared logic
-- Keeps code DRY and maintainable
-- Single responsibility per file
+- Core functionality and utilities
+- AI service integration (`ai.ts`)
+- Database configuration and management
+- Seeding utilities for development
+- Common helper functions
 
 ### `/types`
 - TypeScript type definitions
-- Shared interfaces and types
+- Currently includes chat-related types
+- Ensures type safety across the application
 
-## Key Changes
-1. Simplified folder structure
-2. Removed duplicate routing folders
-3. Organized by feature
-4. Clear separation of concerns
-5. Follows Next.js 13+ conventions
+## Key Features
+1. Next.js 13+ App Router architecture
+2. Feature-based organization
+3. Clear separation of concerns
+4. Modular component structure
+5. Centralized utility functions
+6. Type-safe development with TypeScript
+
+## Best Practices
+1. Component reusability through shared UI components
+2. Consistent file naming conventions
+3. Logical grouping of related functionality
+4. Separation of business logic in `/lib`
+5. Global state management via theme provider
+6. Maintainable and scalable structure
