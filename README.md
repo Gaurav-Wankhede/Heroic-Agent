@@ -2,10 +2,10 @@
 
 Your AI-powered assistant for data science tasks, featuring real-time chat, file analysis, and domain-specific expertise.
 
-[![Next.js](https://img.shields.io/badge/Next.js-13-black)](https://nextjs.org/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue)](https://www.typescriptlang.org/)
+[![Next.js](https://img.shields.io/badge/Next.js-Latest-black)](https://nextjs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-Latest-blue)](https://www.typescriptlang.org/)
 [![MongoDB](https://img.shields.io/badge/MongoDB-Latest-green)](https://www.mongodb.com/)
-[![Tailwind CSS](https://img.shields.io/badge/Tailwind-3.0-38B2AC)](https://tailwindcss.com/)
+[![Tailwind CSS](https://img.shields.io/badge/Tailwind-Latest-38B2AC)](https://tailwindcss.com/)
 
 ## 🌟 Features
 
