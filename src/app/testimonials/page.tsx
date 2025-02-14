@@ -22,18 +22,48 @@ export default function TestimonialsPage() {
   const [testimonials, setTestimonials] = useState<Testimonial[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [debugInfo, setDebugInfo] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchTestimonials() {
       try {
-        const response = await fetch('/api/testimonials');
+        console.log('Fetching testimonials...');
+        const response = await fetch('/api/testimonials', {
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+          },
+        });
+        
+        console.log('Response status:', response.status);
+        const contentType = response.headers.get('content-type');
+        console.log('Content-Type:', contentType);
+        
         if (!response.ok) {
-          throw new Error('Failed to fetch testimonials');
+          const errorText = await response.text();
+          console.error('Error response:', errorText);
+          try {
+            const errorJson = JSON.parse(errorText);
+            throw new Error(errorJson.error || `HTTP error! status: ${response.status}`);
+          } catch (e) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
         }
+
         const data = await response.json();
+        console.log('Received testimonials:', data);
+        
+        if (!Array.isArray(data)) {
+          throw new Error('Invalid response format');
+        }
+
         setTestimonials(data);
+        setDebugInfo(null);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'An error occurred');
+        console.error('Error fetching testimonials:', err);
+        const errorMessage = err instanceof Error ? err.message : 'An error occurred';
+        setError(errorMessage);
+        setDebugInfo(process.env.NODE_ENV === 'development' ? `${err}` : null);
       } finally {
         setIsLoading(false);
       }
@@ -46,9 +76,10 @@ export default function TestimonialsPage() {
     return (
       <PageLayout>
         <div className="min-h-screen flex items-center justify-center">
-          <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
+          <div className="flex flex-col items-center gap-2 text-gray-600 dark:text-gray-400">
             <Loader2 className="h-6 w-6 animate-spin" />
             <span>Loading testimonials...</span>
+            <span className="text-sm text-gray-500">This may take a few seconds</span>
           </div>
         </div>
       </PageLayout>
@@ -59,8 +90,21 @@ export default function TestimonialsPage() {
     return (
       <PageLayout>
         <div className="min-h-screen flex items-center justify-center">
-          <div className="text-red-600 dark:text-red-400">
-            Error: {error}
+          <div className="flex flex-col items-center gap-2 max-w-md mx-auto text-center">
+            <div className="text-red-600 dark:text-red-400 font-semibold">
+              Error: {error}
+            </div>
+            {debugInfo && (
+              <div className="text-xs text-gray-500 dark:text-gray-400 mt-2 p-2 bg-gray-100 dark:bg-gray-800 rounded">
+                {debugInfo}
+              </div>
+            )}
+            <button
+              onClick={() => window.location.reload()}
+              className="mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
+            >
+              Try Again
+            </button>
           </div>
         </div>
       </PageLayout>

@@ -10,23 +10,46 @@ if (!MONGODB_URI) {
 
 interface MongooseCache {
   isConnected?: boolean;
+  conn?: typeof mongoose;
 }
 
 const cached: MongooseCache = {};
 
 export async function connectToDatabase() {
   if (cached.isConnected) {
-    return;
+    return cached.conn;
   }
 
   try {
-    const db = await mongoose.connect(MONGODB_URI, {
+    const opts = {
       bufferCommands: false,
+      serverSelectionTimeoutMS: 5000, // 5 seconds timeout
+      socketTimeoutMS: 45000, // 45 seconds timeout
+      connectTimeoutMS: 10000, // 10 seconds timeout
+      maxPoolSize: 10,
+      minPoolSize: 5,
+    };
+
+    const db = await mongoose.connect(MONGODB_URI, opts);
+    cached.isConnected = !!db.connections[0].readyState;
+    cached.conn = mongoose;
+
+    // Add connection error handlers
+    mongoose.connection.on('error', (err) => {
+      console.error('MongoDB connection error:', err);
+      cached.isConnected = false;
     });
 
-    cached.isConnected = !!db.connections[0].readyState;
+    mongoose.connection.on('disconnected', () => {
+      console.warn('MongoDB disconnected. Attempting to reconnect...');
+      cached.isConnected = false;
+    });
+
+    return cached.conn;
   } catch (e) {
-    throw e;
+    cached.isConnected = false;
+    console.error('MongoDB connection error:', e);
+    throw new Error('Unable to connect to database');
   }
 }
 
