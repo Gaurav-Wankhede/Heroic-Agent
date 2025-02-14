@@ -23,18 +23,26 @@ export async function OPTIONS() {
 }
 
 export async function GET() {
+  console.log('Fetching recent testimonials...');
+  
   try {
-    console.log('Fetching recent testimonials...');
-    
-    const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => reject(new Error('Database operation timed out')), TIMEOUT);
-    });
-
     console.log('Connecting to database...');
+    const mongoose = await connectToDatabase();
+    
+    if (!mongoose) {
+      console.warn('Database connection failed, using fallback data');
+      return createResponse(fallbackTestimonials.slice(0, 4));
+    }
+
+    // Ensure we're connected before proceeding
+    if (!mongoose.connection.readyState) {
+      console.warn('Database not ready, using fallback data');
+      return createResponse(fallbackTestimonials.slice(0, 4));
+    }
+
+    console.log('Database connected successfully');
+    
     try {
-      await connectToDatabase();
-      console.log('Database connected successfully');
-      
       console.log('Fetching recent testimonials from database...');
       const testimonials = await Promise.race([
         Testimonial.find()
@@ -42,23 +50,24 @@ export async function GET() {
           .limit(4)
           .lean()
           .exec(),
-        timeoutPromise
-      ]) as any[];
-      console.log(`Found ${testimonials?.length ?? 0} recent testimonials in database`);
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Database operation timed out')), TIMEOUT)
+        )
+      ]);
 
       if (!testimonials || !Array.isArray(testimonials)) {
         console.warn('Invalid response from database, using fallback data');
         return createResponse(fallbackTestimonials.slice(0, 4));
       }
 
+      console.log(`Found ${testimonials.length} recent testimonials`);
       return createResponse(testimonials);
     } catch (dbError) {
-      console.warn('Database error, using fallback data:', dbError);
+      console.warn('Database query error, using fallback data:', dbError);
       return createResponse(fallbackTestimonials.slice(0, 4));
     }
   } catch (error) {
     console.error('Recent testimonials fetch error:', error);
-    // Even if everything fails, return fallback data
     return createResponse(fallbackTestimonials.slice(0, 4));
   }
 } 
