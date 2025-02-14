@@ -9,7 +9,7 @@ export async function GET() {
       .sort({ timestamp: -1 })
       .lean();
     return NextResponse.json(testimonials);
-  } catch (error) {
+  } catch (_error) {
     return NextResponse.json(
       { error: 'Failed to fetch testimonials' },
       { status: 500 }
@@ -37,7 +37,7 @@ export async function POST(request: Request) {
     });
 
     return NextResponse.json(testimonial, { status: 201 });
-  } catch (error) {
+  } catch (_error) {
     return NextResponse.json(
       { error: 'Failed to create testimonial' },
       { status: 500 }

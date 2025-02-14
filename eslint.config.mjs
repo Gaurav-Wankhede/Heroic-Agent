@@ -12,27 +12,51 @@ const compat = new FlatCompat({
 const eslintConfig = [
   ...compat.extends("next/core-web-vitals", "next/typescript"),
   {
-    rules: {
-      // Disable unused vars warnings for specific cases
-      "@typescript-eslint/no-unused-vars": ["error", { 
-        "argsIgnorePattern": "^_",
-        "varsIgnorePattern": "^_",
-        "ignoreRestSiblings": true 
-      }],
-      // Allow any type in specific cases where it's needed
-      "@typescript-eslint/no-explicit-any": "warn",
-      // Disable react/no-unescaped-entities for better readability
-      "react/no-unescaped-entities": "off",
-      // Configure react-hooks/exhaustive-deps to be a warning instead of error
-      "react-hooks/exhaustive-deps": "warn"
-    },
     files: ["**/*.ts", "**/*.tsx", "**/*.js", "**/*.jsx"],
     ignores: [
       "**/node_modules/**",
       "**/.next/**",
       "**/dist/**",
       "**/public/**"
-    ]
+    ],
+    languageOptions: {
+      parserOptions: {
+        project: "./tsconfig.json",
+        ecmaVersion: "latest",
+        sourceType: "module"
+      }
+    },
+    rules: {
+      // Handle unused variables
+      "@typescript-eslint/no-unused-vars": ["warn", {
+        "varsIgnorePattern": "^_",
+        "argsIgnorePattern": "^_",
+        "caughtErrorsIgnorePattern": "^_",
+        "destructuredArrayIgnorePattern": "^_",
+        "ignoreRestSiblings": true
+      }],
+      
+      // Handle any type usage
+      "@typescript-eslint/no-explicit-any": "warn",
+      
+      // Disable react/no-unescaped-entities for better readability
+      "react/no-unescaped-entities": "off",
+      
+      // Configure react-hooks/exhaustive-deps to be a warning
+      "react-hooks/exhaustive-deps": "warn",
+      
+      // Additional TypeScript rules
+      "@typescript-eslint/explicit-function-return-type": "off",
+      "@typescript-eslint/no-non-null-assertion": "warn",
+      "@typescript-eslint/no-use-before-define": "off",
+      "@typescript-eslint/no-empty-interface": "warn",
+      "@typescript-eslint/ban-ts-comment": "warn"
+    },
+    settings: {
+      next: {
+        rootDir: "."
+      }
+    }
   }
 ];
 

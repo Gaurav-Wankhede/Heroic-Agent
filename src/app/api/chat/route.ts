@@ -173,7 +173,7 @@ export async function DELETE(request: Request) {
     chatHistories.delete(key);
     
     // Clear cache entries for this user and domain
-    for (const [cacheKey, _] of messageCache.entries()) {
+    for (const [cacheKey, _value] of messageCache.entries()) {
       if (cacheKey.startsWith(`${domain}:`)) {
         messageCache.delete(cacheKey);
       }
@@ -252,7 +252,7 @@ export async function PUT(request: Request) {
     chatHistories.set(key, history);
 
     // Clear relevant cache entries
-    for (const [cacheKey, _] of messageCache.entries()) {
+    for (const [cacheKey, _value] of messageCache.entries()) {
       if (cacheKey.startsWith(`${domain}:`)) {
         messageCache.delete(cacheKey);
       }
