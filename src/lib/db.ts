@@ -42,70 +42,60 @@ if (!MONGODB_URI) {
   throw new Error('Please define the MONGODB_URI environment variable inside .env.local');
 }
 
-// Ensure MONGODB_URI is defined
 const uri: string = MONGODB_URI;
 
 export async function connectToDatabase(): Promise<typeof mongoose | null> {
   try {
     if (cached.conn && cached.isConnected) {
-      console.log('Using cached database connection');
       return cached.conn;
     }
 
     const opts: ConnectOptions = {
-      bufferCommands: true, // Enable command buffering
-      serverSelectionTimeoutMS: 30000, // Increase timeout to 30 seconds
-      socketTimeoutMS: 30000,
-      connectTimeoutMS: 30000,
-      maxPoolSize: 10,
-      minPoolSize: 5,
+      bufferCommands: true,
+      serverSelectionTimeoutMS: 5000, // Reduced to 5s
+      socketTimeoutMS: 5000,
+      connectTimeoutMS: 5000,
+      maxPoolSize: 5,
+      minPoolSize: 1,
       retryWrites: true,
       retryReads: true,
-      heartbeatFrequencyMS: 10000,
-      family: 4,
-      autoCreate: true, // Allow auto-creation of collections
-      autoIndex: true, // Build indexes
+      heartbeatFrequencyMS: 5000,
+      family: 4
     };
 
     if (!cached.promise) {
-      cached.promise = mongoose.connect(uri, opts);
+      const connectionPromise = mongoose.connect(uri, opts);
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Connection timeout')), 8000); // 8s timeout
+      });
+
+      cached.promise = Promise.race([connectionPromise, timeoutPromise]) as Promise<typeof mongoose>;
     }
 
     try {
       cached.conn = await cached.promise;
       cached.isConnected = true;
-      console.log('New database connection established');
 
-      // Add connection event handlers
       mongoose.connection.on('connected', () => {
-        console.log('MongoDB connected successfully');
         cached.isConnected = true;
       });
 
-      mongoose.connection.on('error', (err) => {
-        console.error('MongoDB connection error:', err);
+      mongoose.connection.on('error', () => {
         cached.isConnected = false;
+        cached.promise = undefined;
       });
 
       mongoose.connection.on('disconnected', () => {
-        console.warn('MongoDB disconnected');
         cached.isConnected = false;
-      });
-
-      // Handle process termination
-      process.on('SIGTERM', async () => {
-        await mongoose.connection.close();
-        console.log('MongoDB connection closed due to app termination');
-        process.exit(0);
+        cached.promise = undefined;
       });
 
       return cached.conn;
     } catch (error) {
-      cached.promise = undefined; // Reset promise on error
-      throw error; // Re-throw to be caught by outer try-catch
+      cached.promise = undefined;
+      throw error;
     }
   } catch (error) {
-    console.error('MongoDB connection error:', error);
     cached.isConnected = false;
     return null;
   }

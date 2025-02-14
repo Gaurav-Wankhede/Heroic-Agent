@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { connectToDatabase, fallbackTestimonials } from '@/lib/db';
 import Testimonial from '@/models/Testimonial';
 
-const TIMEOUT = 30000; // 30 seconds timeout
+const TIMEOUT = 8000; // 8 seconds timeout for Vercel
 
 // Helper function to create a response with proper headers
 function createResponse(data: any, status = 200) {
@@ -10,7 +10,7 @@ function createResponse(data: any, status = 200) {
     status,
     headers: {
       'Content-Type': 'application/json',
-      'Cache-Control': 'no-store, must-revalidate',
+      'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=300',
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'GET, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type, Accept',
