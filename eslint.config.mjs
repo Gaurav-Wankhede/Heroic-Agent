@@ -28,7 +28,7 @@ const eslintConfig = [
     },
     rules: {
       // Handle unused variables
-      "@typescript-eslint/no-unused-vars": ["warn", {
+      "@typescript-eslint/no-unused-vars": ["error", {
         "varsIgnorePattern": "^_",
         "argsIgnorePattern": "^_",
         "caughtErrorsIgnorePattern": "^_",
@@ -44,7 +44,7 @@ const eslintConfig = [
       }],
       
       // Handle non-null assertions
-      "@typescript-eslint/no-non-null-assertion": "warn",
+      "@typescript-eslint/no-non-null-assertion": "off",
       
       // Disable react/no-unescaped-entities for better readability
       "react/no-unescaped-entities": "off",
@@ -56,12 +56,7 @@ const eslintConfig = [
       
       // Additional TypeScript rules
       "@typescript-eslint/explicit-function-return-type": "off",
-      "@typescript-eslint/no-use-before-define": ["warn", {
-        "functions": false,
-        "classes": true,
-        "variables": true,
-        "typedefs": true
-      }],
+      "@typescript-eslint/no-use-before-define": "off",
       "@typescript-eslint/no-empty-interface": ["warn", {
         "allowSingleExtends": true
       }],
@@ -69,9 +64,10 @@ const eslintConfig = [
         "ts-ignore": "allow-with-description",
         "ts-expect-error": "allow-with-description"
       }],
-      "@typescript-eslint/consistent-type-imports": ["warn", {
+      "@typescript-eslint/consistent-type-imports": ["error", {
         "prefer": "type-imports",
-        "fixStyle": "inline-type-imports"
+        "fixStyle": "separate-type-imports",
+        "disallowTypeAnnotations": false
       }]
     },
     settings: {

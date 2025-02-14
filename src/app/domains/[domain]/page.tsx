@@ -1,15 +1,22 @@
 import { Header } from '@/components/landing/Header';
 import ChatInterface from '@/components/chat/ChatInterface';
 import { Bot } from 'lucide-react';
+import type { Metadata } from 'next';
 
-interface PageProps {
-  params: {
-    domain: string;
+type Props = {
+  params: { domain: string };
+  searchParams: { [key: string]: string | string[] | undefined };
+};
+
+export function generateMetadata({ params }: Props): Metadata {
+  const domainName = params.domain.replace('-', ' ');
+  return {
+    title: `${domainName} Assistant - Heroic Agent`,
+    description: `Get expert help with ${domainName} from our AI-powered assistant.`
   };
-  searchParams: Record<string, string | string[] | undefined>;
 }
 
-export default async function DomainChatPage({ params }: PageProps) {
+export default function DomainChatPage({ params }: Props) {
   const domainName = params.domain.replace('-', ' ');
 
   return (
