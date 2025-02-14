@@ -26,11 +26,12 @@ const eslintConfig = [
       // Configure react-hooks/exhaustive-deps to be a warning instead of error
       "react-hooks/exhaustive-deps": "warn"
     },
-    ignorePatterns: [
-      "node_modules/",
-      ".next/",
-      "dist/",
-      "public/"
+    files: ["**/*.ts", "**/*.tsx", "**/*.js", "**/*.jsx"],
+    ignores: [
+      "**/node_modules/**",
+      "**/.next/**",
+      "**/dist/**",
+      "**/public/**"
     ]
   }
 ];
