@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { connectToDatabase } from '@/lib/db';
+import { connectToDatabase, fallbackTestimonials } from '@/lib/db';
 import Testimonial from '@/models/Testimonial';
 
 const TIMEOUT = 30000; // 30 seconds timeout
@@ -31,33 +31,33 @@ export async function GET() {
     });
 
     console.log('Connecting to database...');
-    await connectToDatabase();
-    console.log('Database connected successfully');
-    
-    console.log('Fetching testimonials...');
-    const testimonials = await Promise.race([
-      Testimonial.find()
-        .sort({ timestamp: -1 })
-        .lean()
-        .exec(),
-      timeoutPromise
-    ]) as any[];
-    console.log(`Found ${testimonials?.length ?? 0} testimonials`);
+    try {
+      await connectToDatabase();
+      console.log('Database connected successfully');
+      
+      console.log('Fetching testimonials from database...');
+      const testimonials = await Promise.race([
+        Testimonial.find()
+          .sort({ timestamp: -1 })
+          .lean()
+          .exec(),
+        timeoutPromise
+      ]) as any[];
+      console.log(`Found ${testimonials?.length ?? 0} testimonials in database`);
 
-    if (!testimonials || !Array.isArray(testimonials)) {
-      console.error('Invalid response from database:', testimonials);
-      throw new Error('Invalid response from database');
+      if (!testimonials || !Array.isArray(testimonials)) {
+        console.warn('Invalid response from database, using fallback data');
+        return createResponse(fallbackTestimonials);
+      }
+
+      return createResponse(testimonials);
+    } catch (dbError) {
+      console.warn('Database error, using fallback data:', dbError);
+      return createResponse(fallbackTestimonials);
     }
-
-    return createResponse(testimonials);
   } catch (error) {
     console.error('Testimonials fetch error:', error);
-    return createResponse(
-      {
-        error: error instanceof Error ? error.message : 'Failed to fetch testimonials',
-        details: process.env.NODE_ENV === 'development' ? `${error}` : undefined
-      },
-      500
-    );
+    // Even if everything fails, return fallback data
+    return createResponse(fallbackTestimonials);
   }
 } 
