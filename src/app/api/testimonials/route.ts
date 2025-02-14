@@ -14,7 +14,7 @@ function createResponse(data: any, status = 200) {
       // Add CORS headers
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type',
+      'Access-Control-Allow-Headers': 'Content-Type, Accept',
     },
   });
 }
@@ -23,34 +23,43 @@ export async function OPTIONS() {
   return createResponse({}, 200);
 }
 
-export async function GET() {
+// Helper function to fetch testimonials
+async function fetchTestimonials() {
+  console.log('Testimonials GET request started');
+  
+  const timeoutPromise = new Promise((_, reject) => {
+    setTimeout(() => reject(new Error('Database operation timed out')), TIMEOUT);
+  });
+
+  console.log('Connecting to database...');
+  await connectToDatabase();
+  console.log('Database connected successfully');
+  
+  console.log('Fetching testimonials...');
+  const testimonials = await Promise.race([
+    Testimonial.find()
+      .sort({ timestamp: -1 })
+      .limit(10)
+      .lean()
+      .exec(),
+    timeoutPromise
+  ]) as any[];
+  console.log(`Found ${testimonials?.length ?? 0} testimonials`);
+
+  if (!testimonials || !Array.isArray(testimonials)) {
+    console.error('Invalid response from database:', testimonials);
+    throw new Error('Invalid response from database');
+  }
+
+  return testimonials;
+}
+
+export async function GET(request: Request) {
   try {
-    console.log('Testimonials GET request started');
+    // Log the request URL for debugging
+    console.log('Request URL:', request.url);
     
-    const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => reject(new Error('Database operation timed out')), TIMEOUT);
-    });
-
-    console.log('Connecting to database...');
-    await connectToDatabase();
-    console.log('Database connected successfully');
-    
-    console.log('Fetching testimonials...');
-    const testimonials = await Promise.race([
-      Testimonial.find()
-        .sort({ timestamp: -1 })
-        .limit(10)
-        .lean()
-        .exec(),
-      timeoutPromise
-    ]) as any[];
-    console.log(`Found ${testimonials?.length ?? 0} testimonials`);
-
-    if (!testimonials || !Array.isArray(testimonials)) {
-      console.error('Invalid response from database:', testimonials);
-      throw new Error('Invalid response from database');
-    }
-
+    const testimonials = await fetchTestimonials();
     return createResponse(testimonials);
   } catch (error) {
     console.error('Testimonials fetch error:', error);

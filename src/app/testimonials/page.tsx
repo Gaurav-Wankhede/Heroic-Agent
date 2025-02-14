@@ -28,13 +28,18 @@ export default function TestimonialsPage() {
     async function fetchTestimonials() {
       try {
         console.log('Fetching testimonials...');
-        const response = await fetch('/api/testimonials', {
+        // Get base URL from window.location to handle both local and production
+        const baseUrl = window.location.origin;
+        const response = await fetch(`${baseUrl}/api/testimonials`, {
           headers: {
             'Accept': 'application/json',
             'Content-Type': 'application/json',
           },
+          // Add cache control
+          cache: 'no-store',
         });
         
+        console.log('Request URL:', `${baseUrl}/api/testimonials`);
         console.log('Response status:', response.status);
         const contentType = response.headers.get('content-type');
         console.log('Content-Type:', contentType);
