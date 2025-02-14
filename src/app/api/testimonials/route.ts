@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
-import { connectToDatabase } from '@/lib/db';
+import { connectToDatabase, fallbackTestimonials } from '@/lib/db';
 import Testimonial from '@/models/Testimonial';
 
-const TIMEOUT = 30000; // Increase timeout to 30 seconds for production
+const TIMEOUT = 5000; // Reduce timeout to 5 seconds for faster fallback
 
 // Helper function to create a response with proper headers
 function createResponse(data: any, status = 200) {
@@ -10,8 +10,7 @@ function createResponse(data: any, status = 200) {
     status,
     headers: {
       'Content-Type': 'application/json',
-      'Cache-Control': 'no-store, must-revalidate',
-      // Add CORS headers
+      'Cache-Control': 'public, max-age=60, stale-while-revalidate=300', // Cache for 1 minute, stale for 5 minutes
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type, Accept',
@@ -32,44 +31,45 @@ async function fetchTestimonials() {
   });
 
   console.log('Connecting to database...');
-  await connectToDatabase();
-  console.log('Database connected successfully');
+  const db = await connectToDatabase();
   
-  console.log('Fetching testimonials...');
-  const testimonials = await Promise.race([
-    Testimonial.find()
-      .sort({ timestamp: -1 })
-      .limit(10)
-      .lean()
-      .exec(),
-    timeoutPromise
-  ]) as any[];
-  console.log(`Found ${testimonials?.length ?? 0} testimonials`);
-
-  if (!testimonials || !Array.isArray(testimonials)) {
-    console.error('Invalid response from database:', testimonials);
-    throw new Error('Invalid response from database');
+  if (!db) {
+    console.warn('Database connection failed, using fallback data');
+    return fallbackTestimonials;
   }
-
-  return testimonials;
+  
+  try {
+    console.log('Fetching testimonials...');
+    const testimonials = await Promise.race([
+      Testimonial.find()
+        .sort({ timestamp: -1 })
+        .limit(10)
+        .lean()
+        .exec(),
+      timeoutPromise
+    ]) as any[];
+    
+    if (!testimonials || !Array.isArray(testimonials)) {
+      console.warn('Invalid response from database, using fallback data');
+      return fallbackTestimonials;
+    }
+    
+    console.log(`Found ${testimonials.length} testimonials`);
+    return testimonials;
+  } catch (error) {
+    console.warn('Error fetching testimonials, using fallback data:', error);
+    return fallbackTestimonials;
+  }
 }
 
 export async function GET(request: Request) {
   try {
-    // Log the request URL for debugging
     console.log('Request URL:', request.url);
-    
     const testimonials = await fetchTestimonials();
     return createResponse(testimonials);
   } catch (error) {
     console.error('Testimonials fetch error:', error);
-    return createResponse(
-      {
-        error: error instanceof Error ? error.message : 'Failed to fetch testimonials',
-        details: process.env.NODE_ENV === 'development' ? `${error}` : undefined
-      },
-      500
-    );
+    return createResponse(fallbackTestimonials);
   }
 }
 
@@ -81,9 +81,13 @@ export async function POST(request: Request) {
       setTimeout(() => reject(new Error('Database operation timed out')), TIMEOUT);
     });
 
-    console.log('Connecting to database...');
-    await connectToDatabase();
-    console.log('Database connected successfully');
+    const db = await connectToDatabase();
+    if (!db) {
+      return createResponse(
+        { error: 'Database connection failed' },
+        503
+      );
+    }
     
     const data = await request.json();
     console.log('Received testimonial data:', { ...data, content: data.content?.substring(0, 50) + '...' });
@@ -95,30 +99,40 @@ export async function POST(request: Request) {
       );
     }
 
-    console.log('Checking for existing testimonial...');
-    const existingTestimonial = await Promise.race([
-      Testimonial.findOne({ email: data.email }).exec(),
-      timeoutPromise
-    ]);
+    try {
+      console.log('Checking for existing testimonial...');
+      const existingTestimonial = await Promise.race([
+        Testimonial.findOne({ email: data.email }).exec(),
+        timeoutPromise
+      ]);
 
-    if (existingTestimonial) {
-      return createResponse(
-        { error: 'A testimonial with this email already exists' },
-        409
-      );
+      if (existingTestimonial) {
+        return createResponse(
+          { error: 'A testimonial with this email already exists' },
+          409
+        );
+      }
+
+      console.log('Creating new testimonial...');
+      const testimonial = await Promise.race([
+        Testimonial.create({
+          ...data,
+          timestamp: new Date()
+        }),
+        timeoutPromise
+      ]);
+      console.log('Testimonial created successfully');
+
+      return createResponse(testimonial, 201);
+    } catch (error) {
+      if (error instanceof Error && error.message === 'Database operation timed out') {
+        return createResponse(
+          { error: 'Operation timed out, please try again' },
+          504
+        );
+      }
+      throw error;
     }
-
-    console.log('Creating new testimonial...');
-    const testimonial = await Promise.race([
-      Testimonial.create({
-        ...data,
-        timestamp: new Date()
-      }),
-      timeoutPromise
-    ]);
-    console.log('Testimonial created successfully');
-
-    return createResponse(testimonial, 201);
   } catch (error) {
     console.error('Testimonial creation error:', error);
     return createResponse(
