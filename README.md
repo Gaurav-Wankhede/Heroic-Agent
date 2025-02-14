@@ -58,7 +58,7 @@ yarn install
 
 3. Create a `.env.local` file in the root directory:
 ```env
-GOOGLE_API_KEY=your_google_api_key
+GEMINI_API_KEY=your_google_api_key
 MONGODB_URI=your_mongodb_connection_string
 ```
 
