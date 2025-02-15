@@ -1,44 +1,48 @@
 # Heroic Agent 🦸‍♂️
 
-Your AI-powered assistant for data science tasks, featuring real-time chat, file analysis, and domain-specific expertise.
+Your AI-powered coding assistant with domain-specific expertise and real-time chat capabilities.
 
 [![Next.js](https://img.shields.io/badge/Next.js-Latest-black)](https://nextjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-Latest-blue)](https://www.typescriptlang.org/)
-[![MongoDB](https://img.shields.io/badge/MongoDB-Latest-green)](https://www.mongodb.com/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind-Latest-38B2AC)](https://tailwindcss.com/)
 
 ## 🌟 Features
 
-- **Real-time AI Chat**: Engage in intelligent conversations with domain-specific expertise
+- **Real-time AI Chat**: 
+  - Intelligent conversations with domain-specific expertise
+  - Real-time streaming responses
+  - Code block syntax highlighting
+  - Copy code functionality
+  - Message editing capabilities
+  - Citation support with source tracking
+
 - **Multi-Domain Support**: 
-  - Excel & Spreadsheets
-  - SQL & Databases
-  - Power BI & Data Visualization
-  - Python Programming
-  - Machine Learning
-  - Deep Learning
-- **File Analysis**: 
-  - Support for multiple file types (CSV, Python, Jupyter Notebooks, etc.)
-  - Intelligent content analysis
-  - Code context understanding
+  - Domain-specific context awareness
+  - Specialized knowledge bases
+  - Contextual code suggestions
+  - Best practices recommendations
+
 - **Smart Features**:
   - Semantic search and context awareness
+  - Web search integration for up-to-date information
   - Code suggestions and optimization
   - Error detection and solutions
-  - Real-time streaming responses
+  - Citation-based responses with source verification
+
 - **Modern UI/UX**:
   - Responsive design
-  - Dark/Light mode
-  - File upload with drag & drop
-  - Real-time chat interface
-  - Social profile integration
+  - Dark/Light mode support
+  - Real-time chat interface with message streaming
+  - Code block syntax highlighting
+  - Smooth animations and transitions
+  - Mobile-friendly interface
+  - Keyboard shortcuts
 
 ## 🚀 Getting Started
 
 ### Prerequisites
 
 - Node.js (v16 or higher)
-- MongoDB database
 - npm or yarn
 
 ### Installation
@@ -76,52 +80,44 @@ yarn dev
 ### Chat Interface
 
 - Use `Ctrl/Cmd + Enter` to send messages
-- Use `Alt + U` to upload files
 - Use `Del` to clear chat history
 - Use `Esc` to cancel editing
+- Use `Enter` for new line
 
-### File Support
+### Keyboard Shortcuts
 
-Supported file types:
-- Images (jpg, png, gif, etc.)
-- Audio files
-- Video files
-- PDF documents
-- CSV files
-- Python files (.py)
-- Jupyter notebooks (.ipynb)
+- Send message: `Ctrl/Cmd + Enter`
+- New line: `Enter`
+- Cancel edit: `Esc`
+- Clear chat: `Del`
 
-### Domain-Specific Features
+### Features
 
-1. **Excel & Spreadsheets**
-   - Formula assistance
-   - Data analysis techniques
-   - Pivot table guidance
+1. **Code Handling**
+   - Syntax highlighting for multiple languages
+   - Copy code with one click
+   - Language detection and display
+   - Code block formatting
 
-2. **SQL & Databases**
-   - Query optimization
-   - Database design
-   - Performance tuning
+2. **Message Management**
+   - Edit messages
+   - Delete messages
+   - Clear chat history
+   - Timestamp display
 
-3. **Power BI**
-   - Dashboard creation
-   - DAX formulas
-   - Report design
+3. **UI Features**
+   - Dark/Light mode toggle
+   - Responsive design
+   - Mobile-friendly interface
+   - Smooth animations
+   - Scroll to bottom button
 
-4. **Python**
-   - Code optimization
-   - Data processing
-   - Library usage
-
-5. **Machine Learning**
-   - Model selection
-   - Training strategies
-   - Evaluation metrics
-
-6. **Deep Learning**
-   - Neural network architecture
-   - Training optimization
-   - Model deployment
+4. **Citations & Sources**
+   - Web search integration
+   - Source verification
+   - Relevance scoring
+   - Citation display
+   - Source linking
 
 ## 🛠️ Technical Architecture
 
@@ -131,20 +127,21 @@ Supported file types:
 - Tailwind CSS for styling
 - Lucide icons
 - Real-time streaming responses
+- Prism for code highlighting
 
 ### Backend
 - Next.js API routes
-- MongoDB with Mongoose
-- File processing system
+- Google's Gemini AI integration
+- Real-time response streaming
 - Chat history management
-- Testimonial system
+- Web search integration
 
 ### Key Components
 - Real-time chat interface
-- File upload and analysis
 - Domain-specific processing
-- Social profile integration
-- Testimonial management
+- Code block handling
+- Citation system
+- Theme management
 
 ## 🤝 Contributing
 
@@ -161,7 +158,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 🙏 Acknowledgments
 
 - Next.js team for the amazing framework
-- MongoDB for the database system
+- Google's Gemini AI for the language model
 - Tailwind CSS for the styling system
 - All contributors who have helped shape this project
 
