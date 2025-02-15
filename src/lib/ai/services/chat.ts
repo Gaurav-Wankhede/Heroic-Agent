@@ -12,13 +12,23 @@ export const chatHistories = new LRUCache<string, ChatHistory>({
 // Function to manage chat history with memory optimization
 export function updateChatHistory(userId: string, domain: string, message: string, response: string) {
   const key = `${userId}:${domain}`;
-  const now = Date.now();
-  const history = chatHistories.get(key) || { messages: [], domain, lastUpdated: now };
+  const now = new Date().toISOString();
+  const history = chatHistories.get(key) || { 
+    messages: [], 
+    domain, 
+    userId,
+    lastUpdated: now 
+  };
 
   // Clean old messages (older than 24 hours)
-  history.messages = history.messages.filter(msg => now - msg.timestamp < 24 * 60 * 60 * 1000);
+  history.messages = history.messages.filter(msg => {
+    if (!msg.timestamp) return false;
+    const msgDate = new Date(msg.timestamp);
+    const nowDate = new Date();
+    return nowDate.getTime() - msgDate.getTime() < 24 * 60 * 60 * 1000;
+  });
 
-  // Optimize message storage
+  // Add new messages
   const newMessages: ChatMessage[] = [
     {
       role: 'user' as const,
@@ -30,13 +40,12 @@ export function updateChatHistory(userId: string, domain: string, message: strin
       content: response,
       timestamp: now
     }
-  ].map(optimizeMessage);
+  ];
 
+  // Add new messages and keep only the last 10 conversations (20 messages, as each conversation has 2 messages)
   history.messages.push(...newMessages);
-
-  // Keep more context with smart truncation
-  if (history.messages.length > CHAT_HISTORY_LIMIT * 6) {
-    history.messages = smartTruncateHistory(history.messages, CHAT_HISTORY_LIMIT * 6);
+  if (history.messages.length > CHAT_HISTORY_LIMIT * 2) {
+    history.messages = history.messages.slice(-CHAT_HISTORY_LIMIT * 2);
   }
 
   history.lastUpdated = now;
@@ -52,7 +61,8 @@ export function getChatHistory(userId: string, domain: string): ChatMessage[] {
     return [];
   }
   
-  return history.messages;
+  // Return only the last 10 conversations (20 messages)
+  return history.messages.slice(-CHAT_HISTORY_LIMIT * 2);
 }
 
 // Helper function to optimize message storage
@@ -83,20 +93,26 @@ function smartTruncateHistory(messages: ChatMessage[], limit: number): ChatMessa
 // Periodic cleanup of expired entries (already handled by LRU cache)
 // Additional cleanup for memory optimization
 setInterval(() => {
-  const now = Date.now();
+  const now = new Date().toISOString();
   chatHistories.forEach((history, key) => {
     // Clean individual message content if too large
     history.messages = history.messages.map(msg => {
       if (msg.content.length > 10000) {
         return {
           ...msg,
-          content: msg.content.substring(0, 10000) + '... [truncated]'
+          content: msg.content.substring(0, 10000) + '... [truncated]',
+          timestamp: msg.timestamp || now
         };
       }
       return msg;
     });
     
+    // Ensure history doesn't exceed 10 conversations
+    if (history.messages.length > CHAT_HISTORY_LIMIT * 2) {
+      history.messages = history.messages.slice(-CHAT_HISTORY_LIMIT * 2);
+    }
+    
     // Update the cleaned history
     chatHistories.set(key, history);
   });
-}, CHAT_HISTORY_TTL / 2); // Run cleanup more frequently 
+}, CHAT_HISTORY_TTL / 2); 

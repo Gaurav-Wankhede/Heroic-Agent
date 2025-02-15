@@ -14,12 +14,6 @@ import { containsOtherDomainKeywords } from '../utils/validation';
 import { validateAndFormatCitations } from '../utils/citationUtils';
 
 
-// Add retry configuration
-const MAX_RETRIES = 3;
-const RETRY_DELAY = 2000; // 2 seconds
-
-
-
 // Function to detect domains in a message
 function getDetectedDomains(message: string, currentDomain: string): string[] {
   const messageLower = message.toLowerCase();

@@ -104,6 +104,7 @@ yarn dev
    - Delete messages
    - Clear chat history
    - Timestamp display
+   - Persistent chat history (last 10 conversations)
 
 3. **UI Features**
    - Dark/Light mode toggle
@@ -134,6 +135,8 @@ yarn dev
 - Google's Gemini AI integration
 - Real-time response streaming
 - Chat history management
+- Stores last 10 conversations
+- Automatic cleanup of older chats
 - Web search integration
 
 ### Key Components
