@@ -13,15 +13,30 @@ export const chatHistories = new LRUCache<string, ChatHistory>({
   updateAgeOnHas: true
 });
 
+// Add date formatting helper
+function getFormattedDate(): string {
+  const now = new Date();
+  return now.toLocaleDateString('en-US', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZoneName: 'short'
+  });
+}
+
 // Function to manage chat history with memory optimization and timeout handling
-export function updateChatHistory(userId: string, domain: string, message: string, response: string) {
+export async function updateChatHistory(userId: string, domain: string, message: string, response: string) {
   const key = `${userId}:${domain}`;
-  const now = new Date().toISOString();
+  const now = getFormattedDate();
   const history = chatHistories.get(key) || { 
     messages: [], 
     domain, 
     userId,
-    lastUpdated: now 
+    lastUpdated: now,
+    lastDateCheck: now
   };
 
   // Clean old messages (older than 24 hours)

@@ -28,6 +28,10 @@ export interface ResponseMetadata {
   validSources: number;
   averageScore: number;
   processingSteps: string[];
+  queryType: string;
+  domain: string;
+  lastInteraction: string;
+  includesDate: boolean;
 }
 
 /**
@@ -92,7 +96,7 @@ export class ResponseHandler {
    * @constructor
    */
   private constructor() {
-    this.errorHandler = new ErrorHandler();
+    this.errorHandler = ErrorHandler.getInstance();
     this.cache = messageCache;
   }
 
@@ -134,10 +138,21 @@ export class ResponseHandler {
       if (fullOptions.cacheResults) {
         const cached = this.getCachedResponse(query, result.metadata);
         if (cached) {
-          return this.createChatResponse(cached.response, result, {
-            ...fullOptions,
-            cacheHit: true
-          });
+          const cachedMetadata: ResponseMetadata = {
+            timestamp: cached.timestamp,
+            duration: 0,
+            cacheHit: true,
+            retries: result.metadata.retries,
+            sources: result.metadata.totalSources,
+            validSources: result.metadata.validSources,
+            averageScore: result.metadata.averageScore,
+            processingSteps: result.metadata.processingSteps || [],
+            queryType: result.metadata.queryType || 'General Query',
+            domain: result.metadata.domain || 'general',
+            lastInteraction: result.metadata.lastInteraction || new Date().toISOString(),
+            includesDate: result.metadata.includesDate || false
+          };
+          return this.createChatResponse(cached.response, result, cachedMetadata);
         }
       }
 
@@ -147,7 +162,14 @@ export class ResponseHandler {
       // Format content with citations
       let content = '';
       if (result.sources.length > 0 && fullOptions.includeCitations) {
-        content = citationService.formatSourcesWithCitations(result.sources, {
+        const sourcesWithDefaultDate = result.sources.map(source => ({
+          ...source,
+          metadata: {
+            ...source.metadata,
+            date: source.metadata.date || new Date().toISOString()
+          }
+        }));
+        content = citationService.formatSourcesWithCitations(sourcesWithDefaultDate, {
           maxCitations: fullOptions.maxCitations,
           style: fullOptions.citationStyle,
           includeMetadata: fullOptions.includeMetadata,
@@ -169,7 +191,11 @@ export class ResponseHandler {
         sources: result.metadata.totalSources,
         validSources: result.metadata.validSources,
         averageScore: result.metadata.averageScore,
-        processingSteps: result.metadata.processingSteps || []
+        processingSteps: result.metadata.processingSteps || [],
+        queryType: result.metadata.queryType || 'General Query',
+        domain: result.metadata.domain || 'general',
+        lastInteraction: result.metadata.lastInteraction || new Date().toISOString(),
+        includesDate: result.metadata.includesDate || false
       };
 
       // Cache response if enabled
@@ -185,7 +211,7 @@ export class ResponseHandler {
 
     } catch (error) {
       // Handle errors
-      const errorResponse = this.errorHandler.handleError(error, {
+      const errorResponse = this.errorHandler.handleError(error instanceof Error ? error : new Error(String(error)), {
         context: {
           query,
           options: fullOptions
@@ -210,8 +236,21 @@ export class ResponseHandler {
     result: PipelineResult,
     metadata: ResponseMetadata
   ): ChatResponse {
+    // Determine if this is a news/update response
+    const isNewsUpdate = metadata.queryType === 'News Update';
+    const isInstallation = metadata.queryType === 'Installation';
+
+    // Format the response based on the query type
+    let formattedContent = content;
+    if (isNewsUpdate) {
+      formattedContent = this.formatNewsResponse(content, result, metadata);
+    } else if (isInstallation) {
+      formattedContent = this.formatInstallationResponse(content, result, metadata);
+    }
+
     return {
-      content,
+      messageId: `ai-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      content: formattedContent,
       groundingMetadata: {
         webSearchSources: result.sources.map(source => ({
           title: source.title,
@@ -220,10 +259,207 @@ export class ResponseHandler {
           score: source.score,
           relevanceScore: source.relevance,
           date: source.metadata.date
-        }))
+        })),
+        temporalContext: {
+          currentDate: new Date().toISOString(),
+          domain: metadata.domain,
+          lastInteraction: metadata.lastInteraction,
+          priority: this.determinePriority(metadata.queryType, content),
+          categories: this.determineCategories(metadata.queryType, content),
+          includesDate: metadata.includesDate || false,
+          lastUpdate: result.metadata.timestamp?.toString(),
+          newsCategories: this.determineNewsCategories(content),
+          timeframe: this.determineTimeframe(metadata.queryType, content)
+        }
       },
       isAI: true
     };
+  }
+
+  /**
+   * Format news update response with enhanced structure
+   */
+  private formatNewsResponse(
+    content: string,
+    result: PipelineResult,
+    metadata: ResponseMetadata
+  ): string {
+    const sections = [
+      { emoji: '📢', title: 'Latest Updates' },
+      { emoji: '🔄', title: 'Breaking Changes' },
+      { emoji: '🛡️', title: 'Security Updates' },
+      { emoji: '✨', title: 'New Features' },
+      { emoji: '🐛', title: 'Bug Fixes' },
+      { emoji: '📚', title: 'Documentation' }
+    ];
+
+    let formatted = `${metadata.domain} Updates - ${new Date().toLocaleDateString()}\n\n`;
+
+    // Add priority indicator if high priority updates exist
+    if (this.determinePriority(metadata.queryType, content) === 'HIGH') {
+      formatted += '🔴 High Priority Updates Included\n\n';
+    }
+
+    // Format each section
+    sections.forEach(section => {
+      const sectionContent = this.extractSection(content, section.title);
+      if (sectionContent) {
+        formatted += `${section.emoji} ${section.title}\n${sectionContent}\n\n`;
+      }
+    });
+
+    // Add relevant sources
+    if (result.sources.length > 0) {
+      formatted += '📌 Sources:\n';
+      result.sources
+        .filter(source => source.relevance > 0.7)
+        .slice(0, 3)
+        .forEach(source => {
+          formatted += `• ${source.title} - ${source.url}\n`;
+        });
+    }
+
+    return formatted;
+  }
+
+  /**
+   * Format installation response with enhanced structure
+   */
+  private formatInstallationResponse(
+    content: string,
+    result: PipelineResult,
+    metadata: ResponseMetadata
+  ): string {
+    let formatted = `${metadata.domain} Installation Guide\n\n`;
+
+    // Add prerequisites section
+    formatted += '📋 Prerequisites:\n';
+    const prerequisites = this.extractSection(content, 'Prerequisites');
+    formatted += prerequisites ? prerequisites + '\n\n' : 'No specific prerequisites listed.\n\n';
+
+    // Add step-by-step installation
+    formatted += '🔧 Installation Steps:\n';
+    const steps = this.extractSection(content, 'Installation');
+    formatted += steps ? steps + '\n\n' : 'Installation steps not available.\n\n';
+
+    // Add configuration guidance
+    formatted += '⚙️ Configuration:\n';
+    const config = this.extractSection(content, 'Configuration');
+    formatted += config ? config + '\n\n' : 'No configuration required.\n\n';
+
+    // Add verification steps
+    formatted += '✅ Verification:\n';
+    const verification = this.extractSection(content, 'Verification');
+    formatted += verification ? verification + '\n\n' : 'No verification steps provided.\n\n';
+
+    // Add troubleshooting tips
+    formatted += '🔍 Troubleshooting:\n';
+    const troubleshooting = this.extractSection(content, 'Troubleshooting');
+    formatted += troubleshooting ? troubleshooting + '\n\n' : 'No common issues noted.\n\n';
+
+    // Add relevant documentation
+    if (result.sources.length > 0) {
+      formatted += '📚 Additional Resources:\n';
+      result.sources
+        .filter(source => source.relevance > 0.7)
+        .slice(0, 3)
+        .forEach(source => {
+          formatted += `• ${source.title} - ${source.url}\n`;
+        });
+    }
+
+    return formatted;
+  }
+
+  /**
+   * Determine priority level based on content analysis
+   */
+  private determinePriority(queryType: string, content: string): 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' {
+    const criticalPatterns = ['security vulnerability', 'critical bug', 'urgent update', 'breaking change'];
+    const highPatterns = ['important update', 'major release', 'significant change'];
+    const mediumPatterns = ['new feature', 'enhancement', 'improvement'];
+
+    if (criticalPatterns.some(pattern => content.toLowerCase().includes(pattern))) {
+      return 'CRITICAL';
+    }
+    if (highPatterns.some(pattern => content.toLowerCase().includes(pattern))) {
+      return 'HIGH';
+    }
+    if (mediumPatterns.some(pattern => content.toLowerCase().includes(pattern))) {
+      return 'MEDIUM';
+    }
+    return 'LOW';
+  }
+
+  /**
+   * Determine relevant categories based on content
+   */
+  private determineCategories(queryType: string, content: string): string[] {
+    const categories = new Set<string>();
+    
+    if (content.toLowerCase().includes('security')) categories.add('security');
+    if (content.toLowerCase().includes('performance')) categories.add('performance');
+    if (content.toLowerCase().includes('feature')) categories.add('features');
+    if (content.toLowerCase().includes('api')) categories.add('api');
+    if (content.toLowerCase().includes('community')) categories.add('community');
+    if (content.toLowerCase().includes('ecosystem')) categories.add('ecosystem');
+    if (content.toLowerCase().includes('trend')) categories.add('trends');
+
+    return Array.from(categories);
+  }
+
+  /**
+   * Determine news categories from content
+   */
+  private determineNewsCategories(content: string): Array<'features' | 'security' | 'performance' | 'api' | 'community' | 'ecosystem' | 'trends'> {
+    const categories: Array<'features' | 'security' | 'performance' | 'api' | 'community' | 'ecosystem' | 'trends'> = [];
+    
+    if (content.toLowerCase().includes('feature')) categories.push('features');
+    if (content.toLowerCase().includes('security')) categories.push('security');
+    if (content.toLowerCase().includes('performance')) categories.push('performance');
+    if (content.toLowerCase().includes('api')) categories.push('api');
+    if (content.toLowerCase().includes('community')) categories.push('community');
+    if (content.toLowerCase().includes('ecosystem')) categories.push('ecosystem');
+    if (content.toLowerCase().includes('trend')) categories.push('trends');
+
+    return categories;
+  }
+
+  /**
+   * Determine timeframe based on content analysis
+   */
+  private determineTimeframe(queryType: string, content: string): 'immediate' | 'recent' | 'weekly' | 'monthly' {
+    const contentLower = content.toLowerCase();
+    
+    if (contentLower.includes('urgent') || contentLower.includes('immediate')) {
+      return 'immediate';
+    }
+    if (contentLower.includes('this week') || contentLower.includes('weekly')) {
+      return 'weekly';
+    }
+    if (contentLower.includes('this month') || contentLower.includes('monthly')) {
+      return 'monthly';
+    }
+    return 'recent';
+  }
+
+  /**
+   * Extract specific section from content
+   */
+  private extractSection(content: string, sectionTitle: string): string {
+    const sections = content.split('\n\n');
+    const sectionIndex = sections.findIndex(section => 
+      section.toLowerCase().includes(sectionTitle.toLowerCase())
+    );
+    
+    if (sectionIndex === -1) return '';
+    
+    let sectionContent = sections[sectionIndex];
+    if (sectionIndex + 1 < sections.length) {
+      sectionContent += '\n' + sections[sectionIndex + 1];
+    }
+    
+    return sectionContent.replace(new RegExp(`.*${sectionTitle}.*\n?`), '').trim();
   }
 
   /**
@@ -235,12 +471,13 @@ export class ResponseHandler {
    */
   private createErrorResponse(errorResponse: ErrorResponse): ChatResponse {
     return {
+      messageId: `ai-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       content: `Error: ${errorResponse.error.message}\n\n` +
         `Type: ${errorResponse.error.type}\n` +
         `Severity: ${errorResponse.error.severity}\n` +
         (errorResponse.error.code ? `Code: ${errorResponse.error.code}\n` : '') +
         (errorResponse.error.details ? `Details: ${JSON.stringify(errorResponse.error.details, null, 2)}` : ''),
-      groundingMetadata: null,
+      groundingMetadata: undefined,
       isAI: true
     };
   }

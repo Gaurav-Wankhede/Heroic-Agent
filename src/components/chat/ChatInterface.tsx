@@ -262,8 +262,15 @@ export default function ChatInterface({ domain }: { domain: string }) {
             try {
               const parsed = JSON.parse(data);
               
+              // Enhanced error handling
               if (parsed.error) {
+                console.error('Server error:', parsed.error);
                 throw new Error(parsed.error);
+              }
+
+              // Validate parsed data structure
+              if (!parsed || typeof parsed !== 'object') {
+                throw new Error('Invalid response format');
               }
 
               if (parsed.messageId) {
@@ -271,7 +278,7 @@ export default function ChatInterface({ domain }: { domain: string }) {
                   aiMessageId = parsed.messageId;
                   setMessages(prev => [...prev, { 
                     messageId: aiMessageId!,
-                    content: parsed.content || '',
+                    content: typeof parsed.content === 'string' ? parsed.content : JSON.stringify(parsed.content) || '',
                     isAI: true,
                     groundingMetadata: parsed.groundingMetadata || null,
                     timestamp: Date.now()
@@ -282,23 +289,29 @@ export default function ChatInterface({ domain }: { domain: string }) {
                       msg.messageId === aiMessageId
                         ? { 
                             ...msg, 
-                            content: parsed.content || msg.content,
+                            content: typeof parsed.content === 'string' ? parsed.content : JSON.stringify(parsed.content) || msg.content,
                             groundingMetadata: parsed.groundingMetadata || msg.groundingMetadata
                           }
                         : msg
                     )
                   );
                 }
+              } else {
+                console.warn('Received message without messageId:', parsed);
               }
             } catch (e) {
-              console.error('Failed to parse chunk:', e);
-              throw e;
+              console.error('Failed to parse chunk:', e, '\nChunk data:', data);
+              throw new Error('Failed to process response data');
             }
           }
         }
       }
     } catch (error) {
       console.error('Chat error:', error);
+      const errorMessage = error instanceof Error ? 
+        error.message : 
+        'An unexpected error occurred while processing your request';
+      
       const errorMessageId = `error-${Date.now()}`;
       setMessages(prev => [...prev, { 
         messageId: errorMessageId,
@@ -426,7 +439,7 @@ export default function ChatInterface({ domain }: { domain: string }) {
                   aiMessageId = parsed.messageId;
                   setMessages(prev => [...prev, { 
                     messageId: aiMessageId!,
-                    content: parsed.content || '',
+                    content: typeof parsed.content === 'string' ? parsed.content : JSON.stringify(parsed.content) || '',
                     isAI: true,
                     groundingMetadata: parsed.groundingMetadata || null,
                     timestamp: Date.now()
@@ -437,7 +450,7 @@ export default function ChatInterface({ domain }: { domain: string }) {
                       msg.messageId === aiMessageId
                         ? { 
                             ...msg, 
-                            content: parsed.content || msg.content,
+                            content: typeof parsed.content === 'string' ? parsed.content : JSON.stringify(parsed.content) || msg.content,
                             groundingMetadata: parsed.groundingMetadata || msg.groundingMetadata
                           }
                         : msg
@@ -697,7 +710,7 @@ export default function ChatInterface({ domain }: { domain: string }) {
                 content={message.content}
                 isAI={message.isAI}
                 groundingMetadata={message.groundingMetadata}
-                timestamp={message.timestamp}
+                timestamp={message.timestamp || Date.now()}
                 edited={message.edited}
                 onEdit={message.isAI ? undefined : (newContent) => handleMessageEdit(message.messageId, newContent)}
               />

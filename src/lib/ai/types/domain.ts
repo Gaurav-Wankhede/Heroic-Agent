@@ -1,13 +1,13 @@
 export interface DomainLatestInfo {
-  keyDevelopments?: string[];
-  trendingTopics?: string[];
-  bestPractices?: string[];
-  resources?: {
+  keyDevelopments: string[];
+  trendingTopics: string[];
+  bestPractices: string[];
+  resources: Array<{
     title: string;
     url: string;
     description?: string;
-  }[];
-  lastUpdated?: string;
+  }>;
+  lastUpdated: string;
 }
 
 export interface DomainConfig {
@@ -21,6 +21,15 @@ export interface DomainConfig {
     keywords: string[];
   };
   url: string;
+}
+
+export interface ValidatedSource {
+  title: string;
+  url: string;
+  description?: string;
+  content?: string;
+  relevanceScore: number;
+  date?: string;
 }
 
 export interface DomainInfo extends DomainConfig {

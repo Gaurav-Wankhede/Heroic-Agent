@@ -1,7 +1,6 @@
 import { ValidationError } from './errorHandler';
 import { linkValidator, LinkValidationOptions, LinkValidationResult } from './linkValidator';
 import { contentValidator, ContentValidationOptions, ContentValidationResult } from './contentValidator';
-import { calculateSimilarity, SimilarityAlgorithm } from './similarity';
 import axios from 'axios';
 import { JSDOM } from 'jsdom';
 

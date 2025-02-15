@@ -5,19 +5,20 @@ import { ExternalLink, User, Bot, Edit2, Check, X, Copy, CheckCheck } from 'luci
 import ReactMarkdown, { Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Highlight, themes } from 'prism-react-renderer';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { Citation, CitationSource } from './Citation';
 import { GoogleSearchSource } from '@/lib/ai/types/Citation';
 
 interface MessageProps {
+  messageId: string;
   content: string;
   isAI: boolean;
   groundingMetadata?: GroundingMetadata | null;
-  onEdit?: (newContent: string) => void;
-  messageId: string;
+  timestamp: number;
   edited?: boolean;
-  timestamp?: number;
-  onFileClick?: (fileName: string) => void;
+  onEdit?: (newContent: string) => void;
+  isDateQuery?: boolean;
+  isLatestInfoQuery?: boolean;
 }
 
 // Custom components for ReactMarkdown
@@ -190,16 +191,27 @@ const MarkdownComponents: Components = {
 };
 
 export function Message({ 
+  messageId, 
   content, 
   isAI, 
   groundingMetadata, 
-  onEdit, 
+  timestamp, 
   edited, 
-  timestamp,
+  onEdit,
+  isDateQuery,
+  isLatestInfoQuery
 }: MessageProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editedContent, setEditedContent] = useState(content);
   const [selectedSource, setSelectedSource] = useState<number | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Ensure content is a string
+  const formattedContent = useMemo(() => {
+    if (typeof content === 'string') return content;
+    if (typeof content === 'object') return JSON.stringify(content);
+    return String(content);
+  }, [content]);
 
   const handleSourceClick = (index: number) => {
     setSelectedSource(selectedSource === index ? null : index);
@@ -239,31 +251,21 @@ export function Message({
   };
 
   return (
-    <div 
-      className={`group/message flex items-start gap-3 px-4 py-2.5 md:py-3 animate-in fade-in-0 slide-in-from-bottom-4 ${isAI ? 'justify-start' : 'justify-end'}`}
-      role="listitem"
-      aria-label={`${isAI ? 'Assistant' : 'User'} message`}
-    >
-      {/* Assistant Avatar - Only shown for AI messages on the left */}
-      {isAI && (
-        <div className="flex-none mt-1">
-          <div className="relative w-7 h-7 md:w-8 md:h-8 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center ring-2 ring-white dark:ring-gray-900 shadow-sm">
-            <Bot size={14} className="text-white" />
-            <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-white dark:border-gray-900" />
-          </div>
-        </div>
-      )}
-
-      {/* Message Content */}
-      <div className={`group/content flex flex-col min-w-0 ${isAI ? 'flex-1 max-w-[85%] md:max-w-[75%]' : 'max-w-[75%] md:max-w-[65%]'}`}>
-        {/* Message bubble */}
-        <div className={`
-          relative px-3.5 py-2.5 md:px-4 md:py-3 overflow-hidden
-          ${isAI 
-            ? 'bg-white dark:bg-gray-800 shadow-sm rounded-2xl rounded-tl-sm border border-gray-100 dark:border-gray-700' 
-            : 'bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-2xl rounded-tr-sm shadow-md'
-          }
-        `}>
+    <div className={`flex ${isAI ? 'justify-start' : 'justify-end'} mb-4`}>
+      <div className={`relative max-w-[85%] ${isAI ? 'order-2' : 'order-1'}`}>
+        <div 
+          className={`
+            relative px-4 py-3 rounded-lg 
+            ${isAI 
+              ? 'bg-white dark:bg-gray-800 shadow-sm border border-gray-200 dark:border-gray-700' 
+              : 'bg-blue-500 text-white'
+            }
+            ${(isDateQuery || isLatestInfoQuery) && isAI 
+              ? 'border-l-4 border-l-blue-500 dark:border-l-blue-400' 
+              : ''
+            }
+          `}
+        >
           {/* Message tail */}
           <div className={`
             absolute top-0 w-2 h-2 
@@ -324,7 +326,7 @@ export function Message({
                   )
                 }}
               >
-                {content}
+                {formattedContent}
               </ReactMarkdown>
             </div>
           )}

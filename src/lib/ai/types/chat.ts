@@ -24,6 +24,6 @@ export interface CacheEntry {
 }
 
 // Constants for chat history management
-export const CHAT_HISTORY_LIMIT = 10;
+export const CHAT_HISTORY_LIMIT = 15;
 export const CHAT_HISTORY_TTL = 1000 * 60 * 60; // 1 hour
 export const CACHE_TTL = 1000 * 60 * 5; // 5 minutes 

@@ -8,14 +8,10 @@ import {
   formatCitationBlock,
   validateCitationBlock
 } from '../types/Citation';
-
-interface GroundingMetadata {
-  webSearchSources?: Array<{
-    title: string;
-    url: string;
-    snippet?: string;
-  }>;
-}
+import { ValidatedSource } from '../types/domain';
+import { scrapeLinks, scrapeWebPage, ScrapedSource } from '../services/webScraper';
+import { GroundingMetadata } from '../types/grounding';
+import pLimit from 'p-limit';
 
 // Helper function to validate URLs
 async function validateUrls(urls: string[]): Promise<Set<string>> {
@@ -82,4 +78,57 @@ export function extractSourcesFromContent(content: string): GoogleSearchSource[]
     relevanceScore: block.relevanceScore,
     description: block.description
   }));
+}
+
+const limit = pLimit(5); // Limit concurrent requests
+
+export async function validateAndEnrichSources(query: string, domain: string): Promise<ValidatedSource[]> {
+  try {
+    console.time('validateAndEnrichSources');
+    
+    // Get relevant links from linkScraper
+    const keywords = query.toLowerCase().split(' ').filter(word => word.length > 3);
+    const relevantLinks = await scrapeLinks(query, domain, keywords);
+    
+    if (!Array.isArray(relevantLinks) || relevantLinks.length === 0) {
+      console.timeEnd('validateAndEnrichSources');
+      return [];
+    }
+
+    // Scrape full content for each relevant link with concurrency limit
+    const scrapedSources = await Promise.all(
+      relevantLinks.map(link => 
+        limit(() => scrapeWebPage(link.url).then(source => {
+          if (source) {
+            source.relevanceScore = link.relevanceScore;
+          }
+          return source;
+        }))
+      )
+    );
+
+    // Filter out null results and convert to ValidatedSource
+    const results = scrapedSources
+      .filter((source): source is ScrapedSource => 
+        source !== null && 
+        source.content !== undefined &&
+        source.content.length > 100
+      )
+      .map(source => ({
+        title: source.title,
+        url: source.url,
+        description: source.description,
+        content: source.content,
+        relevanceScore: source.relevanceScore,
+        date: source.date
+      } as ValidatedSource))
+      .sort((a, b) => b.relevanceScore - a.relevanceScore);
+
+    console.timeEnd('validateAndEnrichSources');
+    return results;
+
+  } catch (error) {
+    console.error('Error validating and enriching sources:', error);
+    return [];
+  }
 } 

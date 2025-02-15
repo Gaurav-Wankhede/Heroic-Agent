@@ -185,7 +185,7 @@ export async function validateAndEnrichSources(query: string, domain: string): P
     const keywords = query.toLowerCase().split(' ').filter(word => word.length > 3);
     const relevantLinks = await scrapeLinks(query, domain, keywords);
     
-    if (relevantLinks.length === 0) {
+    if (!Array.isArray(relevantLinks) || relevantLinks.length === 0) {
       console.timeEnd('validateAndEnrichSources');
       return [];
     }
@@ -226,4 +226,7 @@ export function formatSourceCitation(source: ScrapedSource): string {
     source.title.substring(0, 47) + '...' : 
     source.title;
   return `[${title} (${formattedDate}) - ${source.url}]`;
-} 
+}
+
+export { scrapeLinks };
+export { scrapeWebPage }; 

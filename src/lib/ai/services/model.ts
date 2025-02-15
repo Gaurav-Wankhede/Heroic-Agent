@@ -1,5 +1,5 @@
 import { Tool } from '@google/generative-ai';
-import { getModel } from '../../genai';
+import { getModel } from '@/lib/genai';
 
 // Configure search tool
 const searchTool = {
@@ -8,7 +8,7 @@ const searchTool = {
 
 // Initialize the model with search capability
 export const getSearchModel = async () => {
-  const model = await getModel('gemini-2.0-flash');
+  const model = await getModel();
   if (!model) {
     throw new Error('Search model not available');
   }

@@ -4,17 +4,21 @@ import { DomainLatestInfo } from '../types/domain';
 import { LatestInfoResponse } from '../types/latestInfo';
 import { DOMAIN_CONFIG } from '../config/domains';
 import { getLatestDomainInfo } from '../handlers/response';
-import { Tool } from '@google/generative-ai';
-import { genAI } from '@/lib/genai';
+import { 
+  LinkValidationResult, 
+  WebValidationResult, 
+  ContentValidationResult,
+  ValidationResults 
+} from '../types/pipeline/validations';
+
+import { getModel } from '@/lib/genai';
 import axios from 'axios';
 import { 
   errorHandler, 
   DomainError, 
   ScrapingError, 
   NetworkError, 
-  RateLimitError,
-  ErrorSeverity,
-  type ErrorResponse 
+  RateLimitError
 } from '../utils/errorHandler';
 import { ValidationError } from '../utils/errorHandler';
 import { linkValidator } from '../utils/linkValidator';
@@ -22,37 +26,79 @@ import { webValidator } from '../utils/webValidator';
 import { contentValidator } from '../utils/contentValidator';
 import { calculateSimilarity } from '@/lib/ai/utils/similarity';
 import { type CitationSource } from '@/components/chat/Citation';
-import { JSDOM } from 'jsdom';
 import {
   type PipelineMetrics,
-  type PipelineResult,
   type PipelineOptions,
-  type Source,
-  type PipelineMetadata,
-  type PipelineError
+  type Source
 } from '@/types/pipeline';
 
-// Google search tool interface
-interface GoogleSearchTool {
-  google_search: Record<string, never>;
+export interface PipelineResult {
+  content: string;
+  isValid?: boolean;
+  score?: number;
+  sources: Array<{
+    title: string;
+    url: string;
+    description: string;
+    relevanceScore: number;
+    date?: string;
+    content: string;
+    score: number;
+    relevance: number;
+    metadata: {
+      date?: string;
+      wordCount?: number;
+      readingTime?: number;
+    };
+    validations: ValidationResults;
+  }>;
+  metadata: {
+    totalSources: number;
+    validSources: number;
+    averageScore: number;
+    retries: number;
+    processingSteps?: string[];
+    queryType?: string;
+    domain?: string;
+    lastInteraction?: string;
+    includesDate?: boolean;
+    timestamp?: number;
+    query?: string;
+    duration?: number;
+    cacheHits?: number;
+  };
+  citations?: Array<{
+    url: string;
+    title: string;
+    description: string;
+    date: string;
+    relevanceScore: number;
+  }>;
+  errors: Array<{
+    url: string;
+    phase: string;
+    error: string;
+    code: string;
+  }>;
+  groundingMetadata: {
+    webSearchSources: Array<{
+      title: string;
+      url: string;
+      snippet: string;
+      date?: string;
+      relevanceScore?: number;
+    }>;
+  };
 }
 
-// Configure search tool for grounding
-const searchTool = {
-  google_search: {}
-} as Tool;
-
-// Configure search model with higher precision
-const searchModel = genAI?.getGenerativeModel({
-  model: "models/gemini-2.0-flash",
-  tools: [searchTool],
-  generationConfig: {
-    temperature: 0.2,
-    topK: 30,
-    topP: 0.85,
-    maxOutputTokens: 4096
+// Get search model instance
+async function getSearchModel() {
+  const model = await getModel();
+  if (!model) {
+    throw new Error('Search model not available');
   }
-});
+  return model;
+}
 
 // Default options
 const DEFAULT_OPTIONS: Required<PipelineOptions> = {
@@ -102,7 +148,7 @@ export class PipelineService {
       const fullOptions = { ...DEFAULT_OPTIONS, ...options };
       const startTime = Date.now();
       
-      // Initialize result
+      // Initialize result with empty errors array
       const result: PipelineResult = {
         isValid: true,
         score: 0,
@@ -116,10 +162,14 @@ export class PipelineService {
           averageScore: 0,
           cacheHits: 0,
           retries: 0,
-          processingSteps: []
+          processingSteps: [],
+          queryType: '',
+          domain: '',
+          lastInteraction: '',
+          includesDate: false
         },
         citations: [],
-        errors: [],
+        errors: [], // Initialize empty errors array
         content: '',
         groundingMetadata: {
           webSearchSources: []
@@ -131,7 +181,11 @@ export class PipelineService {
         const cacheKey = this.getCacheKey(query, urls, fullOptions);
         const cachedResult = this.cache.get(cacheKey);
         if (cachedResult) {
-          result.metadata.cacheHits++;
+          if (cachedResult.metadata.cacheHits !== undefined) {
+            cachedResult.metadata.cacheHits++;
+          } else {
+            cachedResult.metadata.cacheHits = 1;
+          }
           return cachedResult;
         }
       }
@@ -148,7 +202,22 @@ export class PipelineService {
           .filter(source => source !== null)
           .forEach(source => {
             if (source) {
-              result.sources.push(source);
+              result.sources.push({
+                title: source.title,
+                url: source.url,
+                description: source.description || '',
+                relevanceScore: source.relevance || 0,
+                date: source.metadata.date,
+                content: source.content,
+                score: source.score,
+                relevance: source.relevance || 0,
+                metadata: source.metadata,
+                validations: {
+                  link: source.validations?.link,
+                  web: source.validations?.web,
+                  content: source.validations?.content
+                }
+              });
               result.metadata.validSources++;
             }
           });
@@ -185,13 +254,17 @@ export class PipelineService {
       const response = this.formatLatestInfoResponse(result);
 
       return {
+        content: response.content,
         isValid: true,
         score: result.score,
         sources: result.sources,
-        metadata: result.metadata,
+        metadata: {
+          ...result.metadata,
+          query: result.metadata.query || query,
+          timestamp: result.metadata.timestamp || Date.now()
+        },
         citations: result.citations,
         errors: result.errors,
-        content: response.content,
         groundingMetadata: response.groundingMetadata
       };
 
@@ -294,7 +367,7 @@ export class PipelineService {
         },
         metadata: {
           author: webResult.metadata.author,
-          date: webResult.metadata.headers?.['last-modified'],
+          date: webResult.metadata.headers?.['last-modified'] || new Date().toISOString(),
           language: webResult.metadata.language,
           wordCount: contentResult.metadata.wordCount,
           readingTime: contentResult.metadata.readingTime,
@@ -356,7 +429,26 @@ export class PipelineService {
   /**
    * Remove duplicate sources based on content similarity
    */
-  private removeDuplicates(sources: Source[]): void {
+  private removeDuplicates(sources: Array<{
+    title: string;
+    url: string;
+    description: string;
+    relevanceScore: number;
+    date?: string;
+    content: string;
+    score: number;
+    relevance: number;
+    metadata: {
+      date?: string;
+      wordCount?: number;
+      readingTime?: number;
+    };
+    validations: {
+      link?: LinkValidationResult;
+      web?: WebValidationResult;
+      content?: ContentValidationResult;
+    };
+  }>): void {
     const seen = new Set<string>();
     let i = 0;
     
@@ -376,7 +468,26 @@ export class PipelineService {
   /**
    * Sort results by score and relevance
    */
-  private sortResults(sources: Source[]): void {
+  private sortResults(sources: Array<{
+    title: string;
+    url: string;
+    description: string;
+    relevanceScore: number;
+    date?: string;
+    content: string;
+    score: number;
+    relevance: number;
+    metadata: {
+      date?: string;
+      wordCount?: number;
+      readingTime?: number;
+    };
+    validations: {
+      link?: LinkValidationResult;
+      web?: WebValidationResult;
+      content?: ContentValidationResult;
+    };
+  }>): void {
     sources.sort((a, b) => {
       const scoreA = (a.score + a.relevance) / 2;
       const scoreB = (b.score + b.relevance) / 2;
@@ -387,13 +498,34 @@ export class PipelineService {
   /**
    * Generate citations from sources
    */
-  private generateCitations(sources: Source[]): CitationSource[] {
+  private generateCitations(sources: Array<{
+    title: string;
+    url: string;
+    description: string;
+    relevanceScore: number;
+    date?: string;
+    content: string;
+    score: number;
+    relevance: number;
+    metadata: {
+      date?: string;
+      wordCount?: number;
+      readingTime?: number;
+    };
+    validations: ValidationResults;
+  }>): Array<{
+    url: string;
+    title: string;
+    description: string;
+    date: string;
+    relevanceScore: number;
+  }> {
     return sources.map(source => ({
       url: source.url,
       title: source.title,
-      description: source.description,
+      description: source.description || '',
       date: source.metadata.date || new Date().toISOString(),
-      relevanceScore: source.relevance
+      relevanceScore: source.relevanceScore || 0
     }));
   }
 
@@ -437,8 +569,9 @@ export class PipelineService {
   /**
    * Format the response with proper structure and citations
    */
-  private formatLatestInfoResponse(result: PipelineResult): LatestInfoResponse {
-    const formattedDomain = result.metadata.query.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+  public formatLatestInfoResponse(result: PipelineResult): LatestInfoResponse {
+    const query = result.metadata.query || '';
+    const formattedDomain = query.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
     let content = `Here's the latest information about ${formattedDomain}:\n\n`;
 
     // Add sections with emojis and citations
@@ -460,6 +593,51 @@ export class PipelineService {
           date: source.metadata.date,
           relevanceScore: source.relevance
         }))
+      }
+    };
+  }
+
+  /**
+   * Format empty response
+   */
+  public formatEmptyResponse(
+    domain: string, 
+    description: string | undefined, 
+    metrics: PipelineMetrics
+  ): PipelineResult {
+    const formattedDomain = domain.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+    
+    return {
+      content: '',
+      isValid: false,
+      score: 0,
+      sources: [],
+      metadata: {
+        totalSources: 0,
+        validSources: 0,
+        averageScore: 0,
+        retries: 0,
+        processingSteps: [],
+        queryType: '',
+        domain: '',
+        lastInteraction: '',
+        includesDate: false,
+        timestamp: Date.now(),
+        query: '',
+        duration: 0,
+        cacheHits: 0
+      },
+      citations: [],
+      errors: [
+        {
+          url: '',
+          phase: 'processing',
+          error: `No recent information found for ${formattedDomain}. ${description || ''}`,
+          code: 'NO_SOURCES_FOUND'
+        }
+      ],
+      groundingMetadata: {
+        webSearchSources: []
       }
     };
   }
@@ -488,6 +666,7 @@ export async function processLatestInfoPipeline(
   query: string,
   domain: string
 ): Promise<PipelineResult> {
+  const pipelineService = PipelineService.getInstance();
   const metrics: PipelineMetrics = {
     startTime: Date.now(),
     searchTime: 0,
@@ -558,7 +737,7 @@ export async function processLatestInfoPipeline(
     }
 
     if (links.length === 0) {
-      return formatEmptyResponse(domain, domainConfig.description, metrics);
+      return pipelineService.formatEmptyResponse(domain, domainConfig.description, metrics);
     }
 
     // 5. Scrape and enrich content with search context
@@ -576,7 +755,7 @@ export async function processLatestInfoPipeline(
     }
 
     if (sources.length === 0) {
-      return formatEmptyResponse(domain, domainConfig.description, metrics);
+      return pipelineService.formatEmptyResponse(domain, domainConfig.description, metrics);
     }
 
     // 6. Ground sources with search results
@@ -607,37 +786,41 @@ export async function processLatestInfoPipeline(
     }
 
     // 8. Format final response with grounded sources
-    const response = formatLatestInfoResponse(latestInfo, domain, domainConfig.description);
+    const response = pipelineService.formatLatestInfoResponse(latestInfo);
 
     // 9. Calculate final metrics
     metrics.totalTime = Date.now() - metrics.startTime;
 
-    // Convert ScrapedSource to Source
-    const processedSources: Source[] = groundedSources.map(source => ({
+    // Convert ScrapedSource to Source with required fields
+    const processedSources = groundedSources.map(source => ({
       url: source.url,
       title: source.title,
       description: source.description || '',
       content: source.content || '',
       score: source.relevanceScore || 0,
       relevance: source.relevanceScore || 0,
-      date: source.date,
-      relevanceScore: source.relevanceScore,
+      relevanceScore: source.relevanceScore || 0,
+      date: source.date || new Date().toISOString(),
       lastScraped: new Date().toISOString(),
-      validations: {},
+      validations: {
+        link: undefined,
+        web: undefined,
+        content: undefined
+      },
       metadata: {
-        date: source.date,
+        date: source.date || new Date().toISOString(),
         wordCount: source.content?.split(/\s+/).length || 0,
         readingTime: Math.ceil((source.content?.split(/\s+/).length || 0) / 200)
       }
     }));
 
-    // Format citations
-    const citations: CitationSource[] = processedSources.map(source => ({
+    // Format citations with required fields
+    const citations = processedSources.map(source => ({
       url: source.url,
       title: source.title,
-      description: source.description,
+      description: source.description || '',
       date: source.metadata.date || new Date().toISOString(),
-      relevanceScore: source.relevance
+      relevanceScore: source.relevance || 0
     }));
 
     return {
@@ -653,7 +836,11 @@ export async function processLatestInfoPipeline(
         averageScore: metrics.totalTime,
         cacheHits: 0,
         retries: 0,
-        processingSteps: []
+        processingSteps: [],
+        queryType: '',
+        domain: '',
+        lastInteraction: '',
+        includesDate: false
       },
       citations,
       errors: [],
@@ -661,7 +848,7 @@ export async function processLatestInfoPipeline(
       groundingMetadata: response.groundingMetadata
     };
 
-  } catch (error: unknown) {
+  } catch (error) {
     console.error('Pipeline error:', error);
     metrics.totalTime = Date.now() - metrics.startTime;
 
@@ -691,7 +878,11 @@ export async function processLatestInfoPipeline(
         averageScore: 0,
         cacheHits: 0,
         retries: 0,
-        processingSteps: []
+        processingSteps: [],
+        queryType: '',
+        domain: '',
+        lastInteraction: '',
+        includesDate: false
       },
       citations: [],
       errors: [
@@ -739,7 +930,8 @@ IMPORTANT:
 - Exclude social media and unreliable sources`;
 
   try {
-    const result = await searchModel?.generateContent(searchPrompt);
+    const model = await getSearchModel();
+    const result = await model.generateContent(searchPrompt);
     const text = result?.response?.text() || '';
     
     return parseSearchResults(text);
@@ -784,7 +976,8 @@ Rate from 0-1 based on:
 
 Return ONLY a number between 0 and 1.`;
 
-      const result = await searchModel?.generateContent(prompt);
+      const model = await getSearchModel();
+      const result = await model.generateContent(prompt);
       const relevanceScore = parseFloat(result?.response?.text() || '0');
 
       // Include sources with high relevance or matching search results
@@ -806,174 +999,57 @@ Return ONLY a number between 0 and 1.`;
 /**
  * Structure the scraped information with AI context
  */
-function structureLatestInfo(sources: ScrapedSource[], aiContext: string, searchResults: Array<{ title: string; url: string; snippet: string; }>): DomainLatestInfo {
-  const keyDevelopments: string[] = [];
-  const trendingTopics: string[] = [];
-  const bestPractices: string[] = [];
-  const resources: { title: string; url: string; description: string; }[] = [];
-
-  // Add AI-generated context first
-  const aiSections = aiContext.split('\n\n');
-  aiSections.forEach(section => {
-    if (section.includes('Key Development')) {
-      keyDevelopments.push(...extractBulletPoints(section));
-    } else if (section.includes('Trending')) {
-      trendingTopics.push(...extractBulletPoints(section));
-    } else if (section.includes('Best Practice')) {
-      bestPractices.push(...extractBulletPoints(section));
-    }
-  });
-
-  // Process each grounded source
-  sources.forEach(source => {
-    // Add to resources with relevance score
-    resources.push({
-      title: source.title,
-      url: source.url,
-      description: `[Relevance: ${Math.round((source.relevanceScore || 0) * 100)}%] ${source.description}`
-    });
-
-    // Extract key developments
-    const firstParagraph = source.content.split('\n')[0];
-    if (firstParagraph && firstParagraph.length > 50) {
-      keyDevelopments.push(firstParagraph);
-    }
-
-    // Extract trending topics
-    const trendingMatches = source.content.match(
-      /(?:trending|popular|emerging|growing|rising).*?[.!?]/gi
-    );
-    if (trendingMatches) {
-      trendingTopics.push(...trendingMatches);
-    }
-
-    // Extract best practices
-    const practiceMatches = source.content.match(
-      /(?:best practice|recommend|should|must|important to).*?[.!?]/gi
-    );
-    if (practiceMatches) {
-      bestPractices.push(...practiceMatches);
-    }
-  });
-
-  return {
-    keyDevelopments: [...new Set(keyDevelopments)].slice(0, 5),
-    trendingTopics: [...new Set(trendingTopics)].slice(0, 5),
-    bestPractices: [...new Set(bestPractices)].slice(0, 5),
-    resources: resources.slice(0, 5),
-    lastUpdated: new Date().toISOString()
-  };
-}
-
-/**
- * Helper to extract bullet points from text
- */
-function extractBulletPoints(text: string): string[] {
-  return text
-    .split('\n')
-    .filter(line => line.trim().startsWith('•'))
-    .map(line => line.replace('•', '').trim());
-}
-
-/**
- * Format response when no sources are found
- */
-function formatEmptyResponse(
-  domain: string, 
-  description: string | undefined, 
-  metrics: PipelineMetrics
-): PipelineResult {
-  const formattedDomain = domain.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-  
-  return {
-    isValid: false,
-    score: 0,
-    sources: [],
+function structureLatestInfo(sources: ScrapedSource[], aiContext: string, searchResults: Array<{ title: string; url: string; snippet: string; }>): PipelineResult {
+  const processedSources = sources.map(source => ({
+    title: source.title,
+    url: source.url,
+    description: source.description || '',
+    content: source.content || '',
+    score: source.relevanceScore || 0,
+    relevance: source.relevanceScore || 0,
+    relevanceScore: source.relevanceScore || 0,
     metadata: {
-      query: '',
-      timestamp: Date.now(),
-      duration: 0,
-      totalSources: 0,
-      validSources: 0,
-      averageScore: 0,
-      cacheHits: 0,
-      retries: 0,
-      processingSteps: []
+      date: source.date || new Date().toISOString(),
+      wordCount: source.content?.split(/\s+/).length || 0,
+      readingTime: Math.ceil((source.content?.split(/\s+/).length || 0) / 200)
     },
-    citations: [],
-    errors: [
-      {
-        url: '',
-        phase: 'processing',
-        error: `No recent information found for ${formattedDomain}. ${description || ''}`,
-        code: 'NO_SOURCES_FOUND'
-      }
-    ],
-    content: '',
-    groundingMetadata: {
-      webSearchSources: []
+    validations: {
+      link: undefined,
+      web: undefined,
+      content: undefined
     }
-  };
-}
-
-/**
- * Format the response with proper structure and citations
- */
-function formatLatestInfoResponse(
-  latestInfo: DomainLatestInfo,
-  domain: string,
-  domainDescription?: string
-): LatestInfoResponse {
-  const formattedDomain = domain.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-  let content = `Here's the latest information about ${formattedDomain}:\n\n`;
-
-  if (domainDescription) {
-    content += `${domainDescription}\n\n`;
-  }
-
-  // Add sections with emojis and citations
-  if (latestInfo.keyDevelopments?.length) {
-    content += "🔑 Key Developments:\n";
-    latestInfo.keyDevelopments.forEach(dev => {
-      content += `• ${dev}\n`;
-    });
-    content += "\n";
-  }
-
-  if (latestInfo.trendingTopics?.length) {
-    content += "📈 Trending Topics:\n";
-    latestInfo.trendingTopics.forEach(topic => {
-      content += `• ${topic}\n`;
-    });
-    content += "\n";
-  }
-
-  if (latestInfo.bestPractices?.length) {
-    content += "✨ Current Best Practices:\n";
-    latestInfo.bestPractices.forEach(practice => {
-      content += `• ${practice}\n`;
-    });
-    content += "\n";
-  }
-
-  if (latestInfo.resources?.length) {
-    content += "📚 Recommended Resources:\n";
-    latestInfo.resources.forEach(resource => {
-      content += `• ${resource.title} - ${resource.url}\n`;
-    });
-  }
-
-  // Format sources for grounding
-  const webSearchSources = latestInfo.resources?.map(resource => ({
-    title: resource.title,
-    url: resource.url,
-    snippet: resource.description || ''
-  })) || [];
+  }));
 
   return {
-    content,
+    content: 'Latest information',
+    isValid: true,
+    score: 1,
+    sources: processedSources,
+    metadata: {
+      totalSources: sources.length,
+      validSources: sources.length,
+      averageScore: sources.reduce((acc, src) => acc + (src.relevanceScore || 0), 0) / sources.length,
+      retries: 0,
+      processingSteps: [],
+      queryType: '',
+      domain: '',
+      lastInteraction: new Date().toISOString(),
+      includesDate: true,
+      timestamp: Date.now(),
+      query: '',
+      duration: 0,
+      cacheHits: 0
+    },
+    citations: processedSources.map(source => ({
+      url: source.url,
+      title: source.title,
+      description: source.description,
+      date: source.metadata.date || new Date().toISOString(),
+      relevanceScore: source.relevanceScore || 0
+    })),
+    errors: [],
     groundingMetadata: {
-      webSearchSources
+      webSearchSources: searchResults
     }
   };
 }

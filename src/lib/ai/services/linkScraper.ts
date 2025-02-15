@@ -2,10 +2,6 @@ import { getModel } from '../../genai';
 import { Tool } from '@google/generative-ai';
 import axios from 'axios';
 
-interface GoogleSearchTool {
-  google_search: Record<string, never>;
-}
-
 interface ScrapedLink {
   url: string;
   title: string;
@@ -23,7 +19,7 @@ const searchTool = {
 // Get model instance for link scraping
 export async function getGenerativeModel() {
   try {
-    const model = await getModel('gemini-2.0-flash');
+    const model = await getModel();
     if (!model) {
       throw new Error('Search model not available');
     }
