@@ -1,16 +1,6 @@
-import { GoogleGenerativeAI, Tool, Part } from '@google/generative-ai';
-import type { GroundingMetadata, FileUploadData, WebSearchSource } from '@/types/chat';
-import { genAI } from './genai';
-import {
-  type FileUploadResponse,
-  type FileAnalysis,
-  fileModel,
-  generateFileAnalysisPrompt,
-  generateFileContent,
-  fileToGenerativePart,
-  analyzeNotebookContent,
-  extractCodeContext
-} from './fileHandler';
+import { GoogleGenerativeAI, Tool } from '@google/generative-ai';
+import type { GroundingMetadata, WebSearchSource } from '@/types/chat';
+
 
 import type {
   ChatMessage,
@@ -27,13 +17,11 @@ import type {
 import {
   // Error classes
   AIError,
-  DomainError,
+  DomainError,    
   
   // Services
   chatHistories,
   messageCache,
-  model,
-  MODEL_CONFIG,
   
   // Utils
   levenshteinDistance,
@@ -62,6 +50,118 @@ import {
   getDomainExamples
 } from './ai/index';
 
+// Enhanced model configuration
+export const MODEL_CONFIG = {
+  text: {
+    model: "models/gemini-2.0-flash",
+    tools: [{
+      functionDeclarations: [{
+        name: "google_search",
+        description: "Search the web",
+        parameters: {
+          type: "object",
+          properties: {
+            query: { type: "string" }
+          },
+          required: ["query"]
+        }
+      }]
+    }] as Tool[],
+    generationConfig: {
+      maxOutputTokens: 4096,
+      temperature: 0.4,
+      topK: 40,
+      topP: 0.95,
+    }
+  }
+} as const;
+
+// Initialize Gemini model
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
+
+// Get model instance with configuration
+export async function getModel() {
+  try {
+    return genAI.getGenerativeModel(MODEL_CONFIG.text);
+  } catch (error) {
+    console.error('Error initializing model:', error);
+    return null;
+  }
+}
+
+
+// Generate chat response with file context
+export async function generateChatResponse(
+  message: string,
+  domain: string
+): Promise<{ content: string; groundingMetadata: GroundingMetadata | null }> {
+  try {
+    const model = await getModel();
+    if (!model) {
+      throw new Error('Model not available');
+    }
+
+    // Generate response with file context
+    const prompt = `Context:
+Domain: ${domain}
+
+User Message: ${message}
+
+Provide a response that:
+1. Addresses the user's message
+2. Incorporates relevant file context
+3. Provides domain-specific insights
+4. Suggests actionable next steps
+5. Maintains coherence with previous context`;
+
+    const result = await model.generateContent([{ text: prompt }]);
+    const response = result.response.text();
+
+    return {
+      content: response,
+      groundingMetadata: null
+    };
+  } catch (error) {
+    console.error('Error generating chat response:', error);
+    throw error;
+  }
+}
+
+// Stream chat response with file context
+export async function streamChatResponse(
+  message: string,
+  domain: string,
+  onToken: (token: string) => void
+): Promise<void> {
+  try {
+    const model = await getModel();
+    if (!model) {
+      throw new Error('Model not available');
+    }
+
+    const prompt = `Context:
+Domain: ${domain}
+
+User Message: ${message}
+
+Provide a response that:
+1. Addresses the user's message
+2. Provides domain-specific insights
+3. Suggests actionable next steps
+4. Maintains coherence with previous context`;
+
+    const result = await model.generateContentStream([{ text: prompt }]);
+    
+    for await (const chunk of result.stream) {
+      const token = chunk.text();
+      onToken(token);
+    }
+  } catch (error) {
+    console.error('Error streaming chat response:', error);
+    throw error;
+  }
+}
+
 /**
  * Convert Gemini metadata to our application's format
  */
@@ -87,22 +187,14 @@ export function convertGroundingMetadata(geminiMetadata: any): GroundingMetadata
 
 // Re-export all types
 export type {
-  // Chat types
   ChatMessage,
   ChatHistory,
   CacheEntry,
-  
-  // Domain types
   DomainInfo,
   DomainConfig,
   DomainLatestInfo,
-  
-  // File types
   WebSearchSource,
-  GroundingMetadata,
-  FileUploadData,
-  FileUploadResponse,
-  FileAnalysis
+  GroundingMetadata
 };
 
 // Re-export values and functions
@@ -114,8 +206,6 @@ export {
   // Services
   chatHistories,
   messageCache,
-  model,
-  MODEL_CONFIG,
   
   // Utils
   levenshteinDistance,
@@ -141,13 +231,5 @@ export {
   DOMAIN_URLS,
   DOMAIN_ERROR_SOLUTIONS,
   getDomainErrorSolution,
-  getDomainExamples,
-  
-  // File handling
-  fileModel,
-  generateFileAnalysisPrompt,
-  generateFileContent,
-  fileToGenerativePart,
-  analyzeNotebookContent,
-  extractCodeContext
+  getDomainExamples
 }; 

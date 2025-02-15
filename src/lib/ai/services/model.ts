@@ -1,9 +1,5 @@
-import { GoogleGenerativeAI, Tool } from '@google/generative-ai';
-import { genAI } from '../../genai';
-
-if (!genAI) {
-  throw new Error('Gemini AI is not properly initialized. Please check your API key configuration.');
-}
+import { Tool } from '@google/generative-ai';
+import { getModel } from '../../genai';
 
 // Configure search tool
 const searchTool = {
@@ -11,16 +7,13 @@ const searchTool = {
 } as Tool;
 
 // Initialize the model with search capability
-export const model = genAI.getGenerativeModel({
-  model: "models/gemini-2.0-flash",
-  tools: [searchTool],
-  generationConfig: {
-    temperature: 0.7,
-    topK: 32,
-    topP: 1,
-    maxOutputTokens: 4096,
+export const getSearchModel = async () => {
+  const model = await getModel('gemini-2.0-flash');
+  if (!model) {
+    throw new Error('Search model not available');
   }
-});
+  return model;
+};
 
 // Model configuration for different purposes
 export const MODEL_CONFIG = {

@@ -21,35 +21,27 @@ const VALID_DOMAINS = [
   'linkedin-optimization',
   'resume-creation',
   'online-credibility'
-  
 ] as const;
 
 type DomainType = typeof VALID_DOMAINS[number];
 
 interface Props {
-  params: {
-    domain: string;
-  };
+  params: { domain: string };
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const { domain } = params;
-  
+  const domain = params.domain;
+
   if (!VALID_DOMAINS.includes(domain as DomainType)) {
     return {
-      title: 'Invalid Domain - Heroic Agent',
-      description: 'This domain is not supported.'
+      title: 'Invalid Domain',
+      description: 'The requested domain does not exist.'
     };
   }
 
-  const domainName = domain.replace('-', ' ');
   return {
-    title: `${domainName} Assistant - Heroic Agent`,
-    description: `Get expert help with ${domainName} from our AI-powered assistant.`,
-    openGraph: {
-      title: `${domainName} Assistant - Heroic Agent`,
-      description: `Get expert help with ${domainName} from our AI-powered assistant.`,
-    },
+    title: `${domain.charAt(0).toUpperCase() + domain.slice(1)} Assistant`,
+    description: `AI-powered assistant for ${domain} related queries and tasks.`
   };
 }
 
@@ -78,15 +70,16 @@ export async function generateStaticParams() {
 }
 
 export default async function DomainChatPage({ params }: Props) {
-  const { domain } = params;
+  const domain = params.domain;
 
   // Validate domain against exact list of valid domains
   if (!VALID_DOMAINS.includes(domain as DomainType)) {
-    notFound();
+    return <DomainNotFound />;
   }
 
   // Check if Gemini AI is initialized
-  if (!isGenAIInitialized()) {
+  const isInitialized = await isGenAIInitialized();
+  if (!isInitialized) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
         <Header />

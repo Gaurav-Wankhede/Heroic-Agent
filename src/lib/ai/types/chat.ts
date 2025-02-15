@@ -1,22 +1,26 @@
-import type { FileAnalysis } from '../../fileHandler';
-
 export interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
-  timestamp: number;
+  files?: Array<{
+    name: string;
+    type?: string;
+    context?: boolean;
+  }>;
+  timestamp?: string;
+  metadata?: Record<string, any>;
 }
 
 export interface ChatHistory {
   messages: ChatMessage[];
   domain: string;
-  lastUpdated: number;
+  userId: string;
+  lastUpdated: string;
 }
 
 export interface CacheEntry {
   response: string;
   timestamp: number;
   history?: ChatMessage[];
-  fileAnalysis?: FileAnalysis;
 }
 
 // Constants for chat history management

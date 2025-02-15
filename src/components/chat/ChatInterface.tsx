@@ -4,107 +4,10 @@ import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { Send, Loader2, ChevronDown, Trash2, Upload, Menu, X, Keyboard, Sun, ArrowLeft, Home } from 'lucide-react';
 import type { Message, GroundingMetadata } from '@/types/chat';
 import { Message as MessageComponent } from './Message';
-import { FileUploader } from './FileUploader';
 import { ConfirmDialog } from './ConfirmDialog';
-import { StorageErrorDialog } from './StorageErrorDialog';
 import { HamburgerMenu } from './HamburgerMenu';
 import Link from 'next/link';
 import { ThemeToggle } from '../theme-toggle';
-// Add file type interfaces
-interface FileAnalysis {
-  type: 'image' | 'audio' | 'video' | 'document' | 'data' | 'code' | 'notebook';
-  analysis: string;
-  metadata: Record<string, any>;
-}
-
-interface UploadedFile {
-  data: string;
-  mimeType: string;
-  name: string;
-  size: number;
-  timestamp: number;
-  content?: string;
-  analysis?: FileAnalysis;
-}
-
-// Add type for notebook cell
-interface NotebookCell {
-  cell_type: string;
-  source: string[];
-}
-
-// Add type for notebook
-interface Notebook {
-  cells: NotebookCell[];
-}
-
-// Add domain-file type relationship mapping
-const DOMAIN_FILE_RELATIONS: Record<string, {
-  primaryTypes: string[];
-  secondaryTypes: string[];
-  description: string;
-}> = {
-  'excel': {
-    primaryTypes: ['data'],
-    secondaryTypes: ['notebook'],
-    description: 'Spreadsheet analysis and data processing'
-  },
-  'python': {
-    primaryTypes: ['code', 'notebook'],
-    secondaryTypes: ['data'],
-    description: 'Python code analysis and data processing'
-  },
-  'sql': {
-    primaryTypes: ['data'],
-    secondaryTypes: ['code', 'notebook'],
-    description: 'Database operations and data analysis'
-  },
-  'power-bi': {
-    primaryTypes: ['data', 'visualization'],  
-    secondaryTypes: ['notebook'],
-    description: 'Data visualization and reporting'
-  },
-  'tableau': {
-    primaryTypes: ['data', 'visualization'],
-    secondaryTypes: ['notebook'],
-    description: 'Data visualization and reporting'
-  },
-  'machine-learning': {
-    primaryTypes: ['data', 'notebook'],
-    secondaryTypes: ['code'],
-    description: 'Machine learning model development and evaluation'
-  },
-  'deep-learning': {
-    primaryTypes: ['data', 'notebook'],
-    secondaryTypes: ['code'],
-    description: 'Deep learning model implementation and training'
-  },
-  'nlp': {
-    primaryTypes: ['data', 'notebook'],
-    secondaryTypes: ['code'],
-    description: 'Natural language processing and text analysis'
-  },
-  'generative-ai': {
-    primaryTypes: ['data', 'notebook'],
-    secondaryTypes: ['code'],
-    description: 'Generative AI model development and evaluation'
-  },
-  'linkedin-optimization': {
-    primaryTypes: ['data', 'notebook'],
-    secondaryTypes: ['code'],
-    description: 'LinkedIn profile optimization and branding'
-  },
-  'resume-creation': {
-    primaryTypes: ['data', 'notebook'],
-    secondaryTypes: ['code'],
-    description: 'Resume creation and formatting'
-  },
-  'online-credibility': {
-    primaryTypes: ['data', 'notebook'],
-    secondaryTypes: ['code'],
-    description: 'Online credibility and personal brand management'
-  }
-};
 
 // Add this function before the ChatInterface component
 function getOSSpecificShortcuts() {
@@ -148,17 +51,33 @@ function getOSSpecificShortcuts() {
   }
 }
 
+// Add this component after the imports
+const FileTagPreview = ({ fileName, onClick }: { fileName: string; onClick: () => void }) => (
+  <button
+    onClick={onClick}
+    className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-orange-100 dark:bg-orange-900/50 text-orange-700 dark:text-orange-300 font-medium hover:bg-orange-200 dark:hover:bg-orange-800/60 transition-colors group"
+  >
+    <svg className="h-3.5 w-3.5 text-orange-500 dark:text-orange-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/>
+      <polyline points="14 2 14 8 20 8"/>
+    </svg>
+    @{fileName}
+  </button>
+);
+
+// Add this at the top of the file, after the imports
+declare global {
+  interface Window {
+    handleFileClick?: (fileName: string) => void;
+  }
+}
+
 export default function ChatInterface({ domain }: { domain: string }) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showScrollButton, setShowScrollButton] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [showFileUploader, setShowFileUploader] = useState(false);
-  const [showStorageError, setShowStorageError] = useState(false);
-  const [uploadedFiles, setUploadedFiles] = useState<{
-    [key: string]: UploadedFile;
-  }>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
@@ -169,9 +88,8 @@ export default function ChatInterface({ domain }: { domain: string }) {
   } | null>(null);
   const [showClearChatDialog, setShowClearChatDialog] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const userId = useMemo(() => {
+  const [userId] = useState(() => {
     // Only access localStorage on the client side
     if (typeof window === 'undefined') return '';
     
@@ -182,163 +100,77 @@ export default function ChatInterface({ domain }: { domain: string }) {
     const newUserId = `user-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     localStorage.setItem('userId', newUserId);
     return newUserId;
+  });
+
+  // Enhanced scroll to bottom function - moved up
+  const scrollToBottom = useCallback(() => {
+    const container = messagesContainerRef.current;
+    const messagesEnd = messagesEndRef.current;
+    
+    if (container && messagesEnd) {
+      const { scrollHeight, clientHeight } = container;
+      const maxScroll = scrollHeight - clientHeight;
+      
+      container.scrollTo({
+        top: maxScroll,
+        behavior: 'smooth'
+      });
+      
+      // Hide scroll button when scrolling to bottom
+      setShowScrollButton(false);
+    }
   }, []);
 
-  // Constants for file management
-  const MAX_TOTAL_FILES = 5;
-  const MAX_TOTAL_SIZE = 50 * 1024 * 1024; // 50MB total
-  const FILE_EXPIRY_TIME = 30 * 60 * 1000; // 30 minutes
-
-  // Add supported file types
-  const SUPPORTED_EXTENSIONS = [
-    // Images
-    '.jpg', '.jpeg', '.png', '.gif', '.webp',
-    // Audio
-    '.mp3', '.wav', '.ogg',
-    // Video
-    '.mp4', '.webm',
-    // Documents
-    '.pdf',
-    // Data
-    '.csv',
-    // Code
-    '.py',
-    // Notebooks
-    '.ipynb'
-  ];
-
-  // Add file type validation
-  const isValidFileType = (file: File) => {
-    const extension = '.' + file.name.split('.').pop()?.toLowerCase();
-    return SUPPORTED_EXTENSIONS.includes(extension);
-  };
-
-  // Load saved files on component mount
+  // Load chat history when component mounts
   useEffect(() => {
-    // Only access localStorage on the client side
-    if (typeof window === 'undefined') return;
-
-    const savedFiles = localStorage.getItem('uploadedFiles');
-    if (savedFiles) {
+    const loadChatHistory = async () => {
       try {
-        const files = JSON.parse(savedFiles);
-        // Clean up expired files
-        const now = Date.now();
-        const validFiles = Object.entries(files).reduce((acc, [id, file]) => {
-          if (now - (file as UploadedFile).timestamp < FILE_EXPIRY_TIME) {
-            acc[id] = file as UploadedFile;
-          }
-          return acc;
-        }, {} as typeof uploadedFiles);
-        setUploadedFiles(validFiles);
-        localStorage.setItem('uploadedFiles', JSON.stringify(validFiles));
+        const response = await fetch(`/api/chat?userId=${userId}&domain=${domain}`);
+        if (!response.ok) {
+          throw new Error('Failed to load chat history');
+        }
+        const history = await response.json();
+        if (history.messages && Array.isArray(history.messages)) {
+          const formattedMessages = history.messages.map((msg: any) => ({
+            messageId: `${msg.role}-${msg.timestamp}`,
+            content: msg.content,
+            isAI: msg.role === 'assistant',
+            timestamp: msg.timestamp,
+            groundingMetadata: msg.groundingMetadata
+          }));
+          setMessages(formattedMessages);
+        }
       } catch (error) {
-        console.error('Error loading saved files:', error);
-        localStorage.removeItem('uploadedFiles');
+        console.error('Error loading chat history:', error);
+        setError(error instanceof Error ? error.message : 'Failed to load chat history');
       }
-    }
-  }, []);
+    };
 
-  // Enhanced cleanupFiles function
-  const cleanupFiles = useCallback(() => {
-    const now = Date.now();
-    const validFiles = Object.entries(uploadedFiles).reduce((acc, [id, file]) => {
-      if (now - file.timestamp < FILE_EXPIRY_TIME) {
-        acc[id] = file;
-      }
-      return acc;
-    }, {} as typeof uploadedFiles);
-    
-    try {
-      setUploadedFiles(validFiles);
-      localStorage.setItem('uploadedFiles', JSON.stringify(validFiles));
-    } catch (error) {
-      if (error instanceof Error && error.name === 'QuotaExceededError') {
-        setShowStorageError(true);
-      } else {
-        console.error('Error saving files:', error);
-      }
-    }
-  }, [uploadedFiles]);
+    loadChatHistory();
+  }, [userId, domain]);
 
-  // Function to handle storage quota error
-  const handleStorageQuotaError = useCallback(() => {
-    // Sort files by timestamp and keep only the most recent ones
-    const sortedFiles = Object.entries(uploadedFiles)
-      .sort(([, a], [, b]) => b.timestamp - a.timestamp)
-      .slice(0, Math.max(1, Math.floor(Object.keys(uploadedFiles).length / 2)))
-      .reduce((acc, [id, file]) => {
-        acc[id] = file;
-        return acc;
-      }, {} as typeof uploadedFiles);
-
-    try {
-      setUploadedFiles(sortedFiles);
-      localStorage.setItem('uploadedFiles', JSON.stringify(sortedFiles));
-    } catch (error) {
-      console.error('Error clearing old files:', error);
-      // If still failing, clear all files
-      setUploadedFiles({});
-      localStorage.removeItem('uploadedFiles');
-    }
-  }, [uploadedFiles]);
-
-  // Run cleanup periodically
+  // Update the scroll tracking useEffect to be more sensitive
   useEffect(() => {
-    const interval = setInterval(cleanupFiles, 5 * 60 * 1000); // Every 5 minutes
-    return () => clearInterval(interval);
-  }, [cleanupFiles]);
+    const container = messagesContainerRef.current;
+    if (!container) return;
 
-  // Helper function to check if we can add more files
-  const canAddFile = (fileSize: number) => {
-    const totalSize = Object.values(uploadedFiles).reduce((sum, file) => sum + file.size, 0) + fileSize;
-    return (
-      Object.keys(uploadedFiles).length < MAX_TOTAL_FILES &&
-      totalSize <= MAX_TOTAL_SIZE
-    );
-  };
+    const handleScroll = () => {
+      const { scrollTop, scrollHeight, clientHeight } = container;
+      // Show button when scrolled up just 100 pixels from bottom
+      const isNearBottom = scrollHeight - scrollTop - clientHeight < 100;
+      setShowScrollButton(!isNearBottom);
+    };
 
-  // Handle scroll button visibility
-  const handleScroll = useCallback(() => {
-    if (!messagesContainerRef.current) return;
-    
-    const { scrollTop, scrollHeight, clientHeight } = messagesContainerRef.current;
-    const isNearBottom = scrollHeight - scrollTop - clientHeight < 100;
-    setShowScrollButton(!isNearBottom);
+    container.addEventListener('scroll', handleScroll);
+    return () => container.removeEventListener('scroll', handleScroll);
   }, []);
 
   // Auto-scroll to bottom when new messages arrive
-  const scrollToBottom = useCallback(() => {
-    if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ 
-        behavior: 'smooth',
-        block: 'end'
-      });
-    }
-  }, []);
-
-  // Add scroll event listener
   useEffect(() => {
-    const container = messagesContainerRef.current;
-    if (container) {
-      container.addEventListener('scroll', handleScroll);
-      return () => container.removeEventListener('scroll', handleScroll);
-    }
-  }, [handleScroll]);
-
-  // Auto-scroll on new messages only if near bottom
-  useEffect(() => {
-    if (!showScrollButton && messages.length > 0) {
+    if (messages.length > 0) {
       scrollToBottom();
     }
-  }, [messages, showScrollButton, scrollToBottom]);
-
-  // Auto-scroll when loading completes
-  useEffect(() => {
-    if (!isLoading) {
-      scrollToBottom();
-    }
-  }, [isLoading, scrollToBottom]);
+  }, [messages, scrollToBottom]);
 
   // Auto-resize textarea
   const adjustTextareaHeight = () => {
@@ -371,7 +203,6 @@ export default function ChatInterface({ domain }: { domain: string }) {
     // Add user message to chat
     const userMessageId = `user-${Date.now()}`;
     
-    // If we're editing a message, only keep messages up to the edited message
     let currentMessages = messages;
     if (messageToEdit) {
       const messageIndex = messages.findIndex(msg => msg.messageId === messageToEdit.messageId);
@@ -380,7 +211,6 @@ export default function ChatInterface({ domain }: { domain: string }) {
       }
     }
     
-    // Add the new user message
     setMessages([...currentMessages, { 
       messageId: userMessageId,
       content: userMessage,
@@ -392,38 +222,6 @@ export default function ChatInterface({ domain }: { domain: string }) {
     let aiMessageId: string | null = null;
 
     try {
-      // Clean up expired files before sending
-      cleanupFiles();
-
-      // Get all valid files with their content
-      const validFiles = Object.entries(uploadedFiles)
-        .filter(([_, file]) => Date.now() - file.timestamp < FILE_EXPIRY_TIME)
-        .map(([id, file]) => ({
-          id,
-          name: file.name,
-          content: file.content || '',
-          mimeType: file.mimeType,
-          timestamp: file.timestamp
-        }));
-
-      // If we're editing a message, update the server-side chat history
-      if (messageToEdit) {
-        await fetch('/api/chat', {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-user-id': userId
-          },
-          body: JSON.stringify({
-            messageId: messageToEdit.messageId,
-            content: userMessage,
-            domain,
-            userId
-          })
-        });
-        setMessageToEdit(null);
-      }
-
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: {
@@ -434,7 +232,6 @@ export default function ChatInterface({ domain }: { domain: string }) {
           message: userMessage,
           domain,
           stream: true,
-          files: validFiles.length > 0 ? validFiles : undefined,
           useWebSearch: true
         })
       });
@@ -532,244 +329,6 @@ export default function ChatInterface({ domain }: { domain: string }) {
       setError(err instanceof Error ? err.message : 'Failed to clear chat');
     }
   };
-
-  const handleFileUpload = async (file: File) => {
-    try {
-      setIsLoading(true);
-      
-      // Validate file type and size
-      if (!isValidFileType(file)) {
-        throw new Error(
-          `Unsupported file type. Supported types: ${SUPPORTED_EXTENSIONS.join(', ')}`
-        );
-      }
-      
-      if (!canAddFile(file.size)) {
-        throw new Error(
-          `Cannot upload file. Maximum ${MAX_TOTAL_FILES} files or ${MAX_TOTAL_SIZE / (1024 * 1024)}MB total allowed.`
-        );
-      }
-
-      // Get file content
-      const fileContent = await file.text();
-      
-      // Convert file to base64 and store it
-      const fileData = await fileToBase64(file);
-      const fileId = `file-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-      
-      const newFile: UploadedFile = {
-        data: fileData.data,
-        mimeType: fileData.mimeType,
-        name: fileData.name,
-        size: file.size,
-        timestamp: Date.now(),
-        content: fileContent
-      };
-
-      // Update uploaded files
-      const updatedFiles = {
-        ...uploadedFiles,
-        [fileId]: newFile
-      };
-      
-      try {
-        localStorage.setItem('uploadedFiles', JSON.stringify(updatedFiles));
-        setUploadedFiles(updatedFiles);
-      } catch (error: unknown) {
-        if (error instanceof Error && 
-            (error.name === 'QuotaExceededError' || 
-             'code' in error && (error.code === 22 || error.code === 1014))) {
-          setShowStorageError(true);
-          return;
-        }
-        throw error;
-      }
-
-      // Add user message about the file upload
-      const userMessageId = `user-${Date.now()}`;
-      setMessages(prev => [...prev, { 
-        messageId: userMessageId,
-        content: `Uploaded file: ${file.name}. Please provide your question or analysis request.`,
-        isAI: false,
-        timestamp: Date.now()
-      }]);
-
-    } catch (error) {
-      console.error('Error uploading file:', error);
-      setError(error instanceof Error ? error.message : 'Error uploading file');
-    } finally {
-      setIsLoading(false);
-      scrollToBottom();
-    }
-  };
-
-  // Helper function to convert File to base64
-  const fileToBase64 = (file: File): Promise<{
-    data: string;
-    mimeType: string;
-    name: string;
-  }> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        if (typeof reader.result === 'string') {
-          // Extract base64 data from the result
-          const base64Data = reader.result.split(',')[1];
-          resolve({
-            data: base64Data,
-            mimeType: file.type,
-            name: file.name
-          });
-        } else {
-          reject(new Error('Failed to read file'));
-        }
-      };
-      reader.onerror = () => reject(reader.error);
-      reader.readAsDataURL(file);
-    });
-  };
-
-  const handleFileDelete = (fileId: string) => {
-    const updatedFiles = { ...uploadedFiles };
-    delete updatedFiles[fileId];
-    setUploadedFiles(updatedFiles);
-    localStorage.setItem('uploadedFiles', JSON.stringify(updatedFiles));
-  };
-
-  // Helper function to get file category
-  function getFileCategory(file: File): string {
-    if (file.name.endsWith('.ipynb')) return 'notebook';
-    if (file.type === 'text/csv') return 'data';
-    if (file.name.endsWith('.py')) return 'code';
-    return 'other';
-  }
-
-  // Helper function to get related domains
-  function getRelatedDomains(fileCategory: string, currentDomain: string): string[] {
-    const relatedDomains = new Set<string>();
-    
-    Object.entries(DOMAIN_FILE_RELATIONS).forEach(([domain, relation]) => {
-      if (domain !== currentDomain && 
-          (relation.primaryTypes.includes(fileCategory) || 
-           relation.secondaryTypes.includes(fileCategory))) {
-        relatedDomains.add(domain);
-      }
-    });
-    
-    return Array.from(relatedDomains);
-  }
-
-  // Domain-specific analysis functions
-  async function analyzeNotebookForDomain(notebook: Notebook, domain: string): Promise<string> {
-    const totalCells = notebook.cells.length;
-    const codeCells = notebook.cells.filter(c => c.cell_type === 'code').length;
-    const markdownCells = notebook.cells.filter(c => c.cell_type === 'markdown').length;
-    
-    const domainKeywords = getDomainKeywords(domain);
-    const relevantCells = notebook.cells.filter(cell => 
-      domainKeywords.some(keyword => 
-        cell.source.join('').toLowerCase().includes(keyword)
-      )
-    ).length;
-
-    return `${domain.charAt(0).toUpperCase() + domain.slice(1)} Notebook Analysis:
-- Total Cells: ${totalCells}
-- Code Cells: ${codeCells}
-- Markdown Cells: ${markdownCells}
-- Domain-Relevant Cells: ${relevantCells}
-
-I can help analyze:
-1. Implementation patterns specific to ${domain}
-2. Code quality and best practices
-3. Domain-specific optimizations
-4. Integration with other tools and libraries
-5. Documentation and reproducibility
-
-Please let me know what aspects you'd like to explore.`;
-  }
-
-  async function analyzeDataForDomain(content: string, domain: string): Promise<string> {
-    const lines = content.split('\n');
-    const headers = lines[0].split(',');
-    
-    const domainRelevance = assessDataRelevance(headers, domain);
-
-    return `${domain.charAt(0).toUpperCase() + domain.slice(1)} Data Analysis:
-- Total Rows: ${lines.length - 1}
-- Total Columns: ${headers.length}
-- Headers: ${headers.join(', ')}
-- Domain Relevance: ${domainRelevance}
-
-I can help analyze:
-1. Data quality and completeness
-2. Domain-specific patterns and insights
-3. Feature engineering opportunities
-4. Visualization recommendations
-5. Integration with ${domain} tools
-
-Please let me know what aspects you'd like to explore.`;
-  }
-
-  async function analyzeCodeForDomain(content: string, domain: string): Promise<string> {
-    const lines = content.split('\n');
-    const imports = lines.filter(line => 
-      line.trim().startsWith('import') || 
-      line.trim().startsWith('from')
-    );
-    
-    const domainKeywords = getDomainKeywords(domain);
-    const relevantLines = lines.filter(line =>
-      domainKeywords.some(keyword =>
-        line.toLowerCase().includes(keyword)
-      )
-    ).length;
-
-    return `${domain.charAt(0).toUpperCase() + domain.slice(1)} Code Analysis:
-- Total Lines: ${lines.length}
-- Import Statements: ${imports.length}
-- Domain-Relevant Lines: ${relevantLines}
-- Key Imports: ${imports.slice(0, 5).join(', ')}${imports.length > 5 ? '...' : ''}
-
-I can help analyze:
-1. Code structure and organization
-2. Implementation patterns for ${domain}
-3. Best practices and optimizations
-4. Integration opportunities
-5. Testing and documentation needs
-
-Please let me know what aspects you'd like to explore.`;
-  }
-
-  // Helper function to get domain-specific keywords
-  function getDomainKeywords(domain: string): string[] {
-    const keywords: Record<string, string[]> = {
-      'python': ['pandas', 'numpy', 'matplotlib', 'scikit', 'scipy'],
-      'machine-learning': ['model', 'train', 'predict', 'accuracy', 'sklearn'],
-      'deep-learning': ['neural', 'tensorflow', 'pytorch', 'keras', 'layer'],
-      'data': ['data', 'analysis', 'visualization', 'statistics', 'plot'],
-      'excel': ['excel', 'spreadsheet', 'workbook', 'pivot', 'formula'],
-      'sql': ['sql', 'query', 'database', 'table', 'join'],
-      'power-bi': ['powerbi', 'dax', 'measure', 'visual', 'report']
-    };
-    
-    return keywords[domain] || [];
-  }
-
-  // Helper function to assess data relevance for domain
-  function assessDataRelevance(headers: string[], domain: string): string {
-    const keywords = getDomainKeywords(domain);
-    const relevantHeaders = headers.filter(header =>
-      keywords.some(keyword =>
-        header.toLowerCase().includes(keyword)
-      )
-    ).length;
-    
-    const relevanceScore = relevantHeaders / headers.length;
-    
-    if (relevanceScore > 0.5) return 'High';
-    if (relevanceScore > 0.2) return 'Medium';
-    return 'Low';
-  }
 
   const handleMessageEdit = async (messageId: string, newContent: string) => {
     // Find the message index
@@ -917,40 +476,11 @@ Please let me know what aspects you'd like to explore.`;
         e.preventDefault();
         setShowClearChatDialog(true);
       }
-      
-      // Handle Alt + U for file upload
-      if (e.key === 'u' && e.altKey && !isLoading) {
-        e.preventDefault();
-        setShowFileUploader(true);
-      }
     };
 
     window.addEventListener('keydown', handleGlobalKeyDown);
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
   }, [isLoading, messages.length]);
-
-  // Add function to handle clearing old files
-  const handleClearOldFiles = () => {
-    try {
-      // Keep only the most recent files
-      const sortedEntries = Object.entries(uploadedFiles)
-        .sort(([, a], [, b]) => b.timestamp - a.timestamp)
-        .slice(0, Math.max(1, Math.floor(Object.keys(uploadedFiles).length / 2)));
-      
-      const recentFiles = sortedEntries.reduce((acc, [id, file]) => ({
-        ...acc,
-        [id]: file
-      }), {} as typeof uploadedFiles);
-      
-      localStorage.setItem('uploadedFiles', JSON.stringify(recentFiles));
-      setUploadedFiles(recentFiles);
-    } catch (error) {
-      console.error('Error clearing old files:', error);
-      // If still failing, clear all files
-      localStorage.removeItem('uploadedFiles');
-      setUploadedFiles({});
-    }
-  };
 
   // Render welcome message
   const renderWelcomeMessage = () => {
@@ -988,6 +518,12 @@ Please let me know what aspects you'd like to explore.`;
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isMobileMenuOpen]);
 
+  const handleInput = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const input = e.target.value;
+    setInput(input);
+    adjustTextareaHeight();
+  };
+
   return (
     <div className="flex flex-col h-full relative bg-gray-50 dark:bg-gray-900">
       {/* Header with hamburger menu */}
@@ -999,7 +535,7 @@ Please let me know what aspects you'd like to explore.`;
             onClose={() => setIsMobileMenuOpen(false)}
             onToggle={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
             shortcuts={shortcuts}
-            onFileUpload={() => setShowFileUploader(true)}
+           
             onClearChat={() => setShowClearChatDialog(true)}
           />
           
@@ -1043,16 +579,8 @@ Please let me know what aspects you'd like to explore.`;
             <span className="ml-2">New line</span>
           </div>
           <div>
-            <kbd className="px-2 py-1 bg-white dark:bg-gray-700 rounded-md shadow-sm border border-gray-200 dark:border-gray-600">{shortcuts.fileUpload}</kbd>
-            <span className="ml-2">Upload file</span>
-          </div>
-          <div>
             <kbd className="px-2 py-1 bg-white dark:bg-gray-700 rounded-md shadow-sm border border-gray-200 dark:border-gray-600">{shortcuts.clearChat}</kbd>
             <span className="ml-2">Clear chat</span>
-          </div>
-          <div>
-          <kbd className="px-2 py-1 bg-white dark:bg-gray-700 rounded-md shadow-sm border border-gray-200 dark:border-gray-600">Shift</kbd>
-          <span className="ml-2">Hold for horizontal scroll</span>
           </div>
         </div>
       </div>
@@ -1119,12 +647,6 @@ Please let me know what aspects you'd like to explore.`;
                   {shortcuts.clearChat}
                 </kbd>
               </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600 dark:text-gray-300">Upload file</span>
-                <kbd className="px-2 py-1 text-xs font-semibold bg-gray-100 dark:bg-gray-700 rounded text-gray-500 dark:text-gray-400">
-                  {shortcuts.fileUpload}
-                </kbd>
-              </div>
             </div>
           </div>
 
@@ -1138,7 +660,6 @@ Please let me know what aspects you'd like to explore.`;
               <button
                 onClick={() => {
                   setIsMobileMenuOpen(false);
-                  setShowFileUploader(true);
                 }}
                 className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
               >
@@ -1190,7 +711,7 @@ Please let me know what aspects you'd like to explore.`;
         {showScrollButton && (
           <button
             onClick={scrollToBottom}
-            className="absolute left-4 bottom-4 p-2 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 rounded-full shadow-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition-all duration-200 animate-in fade-in slide-in-from-bottom-2"
+            className="fixed right-6 bottom-24 p-3 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 rounded-full shadow-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition-all transform hover:scale-105 z-10 animate-in fade-in zoom-in-95 duration-200"
             aria-label="Scroll to bottom"
           >
             <ChevronDown className="h-5 w-5" />
@@ -1199,80 +720,38 @@ Please let me know what aspects you'd like to explore.`;
       </div>
 
       {/* Input area */}
-      <div className="border-t border-gray-200/80 dark:border-gray-700/80 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm p-4">
+      <div className="relative flex-shrink-0">
         <div className="relative">
+          {/* Textarea for user input */}
           <textarea
             ref={textareaRef}
             value={input}
-            onChange={(e) => {
-              setInput(e.target.value);
-              adjustTextareaHeight();
-            }}
+            onChange={handleInput}
             onKeyDown={handleKeyDown}
-            placeholder="Type a message..."
-            className="w-full resize-none rounded-lg border border-gray-200 dark:border-gray-700 bg-white/90 dark:bg-gray-800/90 p-3 pr-24 text-gray-900 dark:text-gray-100 focus:border-blue-500 dark:focus:border-blue-400 focus:ring-1 focus:ring-blue-500 dark:focus:ring-blue-400 outline-none overflow-y-auto overflow-x-hidden [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] backdrop-blur-sm transition-colors"
+            placeholder="Type your message..."
+            className="w-full resize-none bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-2xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500/40 dark:focus:ring-blue-500/40 border border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 transition-all duration-200 min-h-[3rem] shadow-sm placeholder:text-gray-400 dark:placeholder:text-gray-500 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
             rows={1}
+            style={{ minHeight: '3rem' }}
+            aria-label="Message input"
+            aria-describedby="message-input-help"
+            role="textbox"
+            aria-multiline="true"
           />
-          <div className="absolute right-2 bottom-2 flex items-center gap-2">
-            {input && (
-              <button
-                onClick={() => setInput('')}
-                className="p-2 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
-                title="Clear input"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            )}
-            <button
-              onClick={() => setShowFileUploader(true)}
-              className="p-2 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
-              title="Upload file"
-            >
-              <Upload className="h-4 w-4" />
-            </button>
+          
+          {/* Input actions */}
+          <div className="absolute right-4 inset-y-0 flex items-center justify-center">
             <button
               onClick={handleSubmit}
-              disabled={!input.trim() && !Object.keys(uploadedFiles).length}
-              className="p-2 text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 disabled:opacity-50"
-              title="Send message"
+              className="p-2 text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-300 rounded-full hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
+              aria-label="Send message"
             >
-              <Send className="h-4 w-4" />
+              <svg className="w-5 h-5 rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+              </svg>
             </button>
           </div>
         </div>
       </div>
-
-      {/* Hidden file input */}
-      <input
-        type="file"
-        ref={fileInputRef}
-        onChange={(e) => {
-          const file = e.target.files?.[0];
-          if (file) handleFileUpload(file);
-          e.target.value = '';
-        }}
-        className="hidden"
-        accept={SUPPORTED_EXTENSIONS.join(',')}
-      />
-
-      {/* File uploader dialog */}
-      <FileUploader
-        isOpen={showFileUploader}
-        onClose={() => setShowFileUploader(false)}
-        onUpload={handleFileUpload}
-        onDelete={handleFileDelete}
-        uploadedFiles={uploadedFiles}
-        maxTotalFiles={MAX_TOTAL_FILES}
-        maxTotalSize={MAX_TOTAL_SIZE}
-        fileExpiryTime={FILE_EXPIRY_TIME}
-      />
-
-      {/* Storage error dialog */}
-      <StorageErrorDialog
-        isOpen={showStorageError}
-        onClose={() => setShowStorageError(false)}
-        onClearOldFiles={handleClearOldFiles}
-      />
 
       <ConfirmDialog
         isOpen={showConfirmDialog}
@@ -1289,6 +768,7 @@ Please let me know what aspects you'd like to explore.`;
         title="Clear Chat"
         message="Are you sure you want to clear the chat? This action cannot be undone."
       />
+
     </div>
   );
 } 

@@ -118,7 +118,23 @@ export const DOMAIN_CONFIG = new Map<string, DomainConfig>();
 // Initialize domain configurations with URLs
 Object.entries(DOMAIN_PROMPTS).forEach(([domain, info]) => {
   DOMAIN_CONFIG.set(domain, {
+    name: domain.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
+    description: info.prompt.split('\n')[0], // Use first line of prompt as description
+    capabilities: ['AI-powered assistance', 'Latest information updates', 'Domain-specific guidance'],
+    examples: ['Get latest updates', 'Ask domain-specific questions', 'Request best practices'],
     info,
     url: `/domains/${domain}`
   });
+});
+
+DOMAIN_CONFIG.set('domain-name', {
+  name: 'Domain Name',
+  description: 'Description of the domain',
+  capabilities: ['Capability 1', 'Capability 2'],
+  examples: ['Example 1', 'Example 2'],
+  info: {
+    prompt: 'Domain-specific prompt',
+    keywords: ['keyword1', 'keyword2']
+  },
+  url: 'https://domain-url.com'
 }); 

@@ -1,6 +1,6 @@
 import { ChatMessage } from '../types/chat';
 import { DOMAIN_CONFIG } from '../config/domains';
-import { isSimilar } from './similarity';
+import { isSimilar, calculateMessageSimilarity } from './similarity';
 
 const COMMON_QUESTION_WORDS = [
   'what', 'how', 'why', 'when', 'where', 'which', 'who',
@@ -62,7 +62,7 @@ export function isQuestionRelevant(question: string, domain: string, chatHistory
     
     const keywordParts = keyword.toLowerCase().split(/\s+/);
     return words.some(word => 
-      keywordParts.some(part => isSimilar(word, part, 0.7))
+      keywordParts.some(part => isSimilar(word, part, { threshold: 0.7 }))
     );
   });
 
@@ -96,7 +96,7 @@ export function containsOtherDomainKeywords(message: string, currentDomain: stri
       
       const keywordParts = keyword.toLowerCase().split(/\s+/);
       const hasMatch = words.some(word => 
-        keywordParts.some(part => isSimilar(word, part, 0.7))
+        keywordParts.some(part => isSimilar(word, part, { threshold: 0.7 }))
       );
       
       return hasMatch ? count + 1 : count;

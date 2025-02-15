@@ -1,10 +1,13 @@
-export interface WebSearchSource {
-  url: string;
-  title: string;
+import { GoogleSearchSource } from '@/lib/ai/types/Citation';
+
+export interface WebSearchSource extends GoogleSearchSource {
+  snippet?: string;
 }
 
 export interface GroundingMetadata {
-  webSearchSources?: WebSearchSource[];
+  webSearchSources: WebSearchSource[];
+  citations?: string[];
+  score?: number;
   groundingChunks?: Array<{
     web: {
       uri: string;
@@ -20,13 +23,13 @@ export interface Message {
   groundingMetadata?: GroundingMetadata | null;
   timestamp?: number;
   edited?: boolean;
-  originalContent?: string;
 }
 
 export interface ChatResponse {
+  messageId: string;
   content: string;
-  groundingMetadata: GroundingMetadata | null;
-  isAI: boolean;
+  groundingMetadata?: GroundingMetadata;
+  error?: string;
 }
 
 export interface StreamChunk {
@@ -34,12 +37,6 @@ export interface StreamChunk {
   content?: string;
   groundingMetadata?: GroundingMetadata;
   error?: string;
-}
-
-export interface FileUploadData {
-  data: string;
-  mimeType: string;
-  name: string;
 }
 
 export interface EditMessageRequest {
